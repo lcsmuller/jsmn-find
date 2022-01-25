@@ -2,7 +2,7 @@
 #define JSMN_FIND_H
 
 #ifndef JSMN_H
-#error __FILE__ "should be included after jsmn.h"
+#error "jsmn-find.h should be included after jsmn.h"
 #endif
 
 #ifdef JSMN_HEADER
