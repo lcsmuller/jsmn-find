@@ -1,57 +1,62 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include "jsmn.h"
 #include "jsmn-find.h"
 
-char *
-cog_load_whole_file_fp(FILE *fp, size_t *len)
+static char *
+load_whole_file(char *filename, long *p_fsize)
 {
-    fseek(fp, 0, SEEK_END);
-    size_t fsize = ftell(fp);
-    fseek(fp, 0, SEEK_SET);
-    char *str = malloc(fsize + 1);
+    long fsize;
+    char *str;
+    FILE *f;
+
+    f = fopen(filename, "rb");
+    assert(NULL != f && "Couldn't open file");
+
+    fseek(f, 0, SEEK_END);
+    fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    str = malloc(fsize + 1);
 
     str[fsize] = '\0';
-    fsize = fread(str, 1, fsize, fp);
-    if (!fsize) {
-        free(str);
-        str = NULL;
-    }
+    fread(str, 1, fsize, f);
 
-    if (len) *len = fsize;
+    fclose(f);
 
-    return str;
-}
+    if (p_fsize) *p_fsize = fsize;
 
-char *
-cog_load_whole_file(const char filename[], size_t *len)
-{
-    FILE *fp = fopen(filename, "rb");
-    char *str = cog_load_whole_file_fp(fp, len);
-    fclose(fp);
     return str;
 }
 
 int
 main(int argc, char *argv[])
 {
-    char *path[] = { "a", "b", "c" };
+    char *path[] = { "1", "0", "a" };
+    jsmnfind *handle;
+    jsmntok_t *tok;
+    char *json;
+    long len;
+    int ret;
 
     if (argc == 1) return EXIT_FAILURE;
 
-    size_t len;
-    char *json = cog_load_whole_file(argv[1], &len);
+    json = load_whole_file(argv[1], &len);
 
-    jsmnfind *handle = jsmnfind_init();
-    int ret;
+    handle = jsmnfind_init();
 
     ret = jsmnfind_start(handle, json, len);
     printf("Exit with %d\n", ret);
 
-    jsmntok_t *tok = jsmnfind_find(handle, path, sizeof(path) / sizeof(char *));
-    fprintf(stderr, "Found: %.*s\n", tok->end - tok->start, json + tok->start);
+    tok = jsmnfind_find(handle, path, sizeof(path) / sizeof(char *));
+    if (tok)
+        fprintf(stderr, "Found: %.*s\n", tok->end - tok->start,
+                json + tok->start);
+    else
+        fprintf(stderr, "Couldn't locate field\n");
 
     jsmnfind_cleanup(handle);
     free(json);

@@ -9,7 +9,7 @@ TEST_PARSER := parser test
 
 EXES := $(TEST_PARSER)
 
-CFLAGS += -std=c99 -g -I. -I$(TOP)
+CFLAGS += -Wall -Wextra -Wpedantic -std=c89 -g -I. -I$(TOP)
 
 all: $(EXES)
 

@@ -36,7 +36,7 @@ jsmntok_t *tok = jsmnfind_find(f, path, sizeof(path)/ sizeof(char *));
 printf("Found: %.*s\n", tok->end - tok->start, json + tok->start); // Found: 2
 ```
 
-jsmn-find is single-header and should be compatible with jsmn additional macros for more complex uses cases. `#define JSMN_STATIC` hides all jsmn-find API symbols by making them static. Also, if you want to include `jsmn-find.h` from multiplce C files, to avoid duplication of symbols you may define `JSMN_HEADER` macro.
+jsmn-find is single-header and should be compatible with jsmn additional macros for more complex uses cases. `#define JSMN_STATIC` hides all jsmn-find API symbols by making them static. Also, if you want to include `jsmn-find.h` from multiple C files, to avoid duplication of symbols you may define `JSMN_HEADER` macro.
 
 ```c
 /* In every .c file that uses jsmn include only declarations: */

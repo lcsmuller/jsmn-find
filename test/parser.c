@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+#define JSMN_STRICT
 #include "jsmn.h"
 #include "jsmn-find.h"
 #include "greatest.h"
@@ -20,17 +21,27 @@ enum action {
     ACTION_REJECT = 1 << 2
 };
 
+struct context {
+    char *str;
+    long len;
+    enum action expected;
+};
+
 static char *
 load_whole_file(char *filename, long *p_fsize)
 {
-    FILE *f = fopen(filename, "rb");
+    long fsize;
+    char *str;
+    FILE *f;
+
+    f = fopen(filename, "rb");
     assert(NULL != f && "Couldn't open file");
 
     fseek(f, 0, SEEK_END);
-    long fsize = ftell(f);
+    fsize = ftell(f);
     fseek(f, 0, SEEK_SET);
 
-    char *str = malloc(fsize + 1);
+    str = malloc(fsize + 1);
 
     str[fsize] = '\0';
     fread(str, 1, fsize, f);
@@ -43,67 +54,68 @@ load_whole_file(char *filename, long *p_fsize)
 }
 
 TEST
-check_parser(char str[], long len, enum action expected)
+check_parser(struct context *cxt)
 {
     static char errbuf[2048];
 
+    int jsonlen = (cxt->len < (int)sizeof(errbuf) - 1)
+                      ? cxt->len
+                      : (int)sizeof(errbuf) - 1;
+    enum action action;
     pid_t pid;
+    int status;
 
     pid = fork();
     if (pid < 0) {
-        snprintf(errbuf, sizeof(errbuf), "%s", strerror(errno));
+        sprintf(errbuf, "%.*s", (int)sizeof(errbuf) - 1, strerror(errno));
         SKIPm(errbuf);
     }
 
-    if (0 == pid) { // child process
+    if (0 == pid) { /* child process */
         jsmnfind *handle = jsmnfind_init();
         int ret;
 
-        ret = jsmnfind_start(handle, str, len);
+        ret = jsmnfind_start(handle, cxt->str, cxt->len);
 
         jsmnfind_cleanup(handle);
 
         _exit(ret >= 0 ? EXIT_SUCCESS : EXIT_FAILURE);
     }
 
-    int status;
     wait(&status);
-    if (!WIFEXITED(status)) { // child process crashed
-        snprintf(errbuf, sizeof(errbuf), "Process crashed, JSON: %.*s",
-                 (int)len, str);
+    if (!WIFEXITED(status)) { /* child process crashed */
+        sprintf(errbuf, "Process crashed, JSON: %.*s", jsonlen, cxt->str);
         FAILm(errbuf);
     }
 
-    enum action action;
     if (EXIT_SUCCESS == WEXITSTATUS(status))
         action = ACTION_ACCEPT;
     else
         action = ACTION_REJECT;
 
-    if (!expected || action & expected) PASS();
+    if (!cxt->expected || action & cxt->expected) PASS();
 
-    snprintf(errbuf, sizeof(errbuf), "JSON: %.*s", (int)len, str);
+    sprintf(errbuf, "JSON: %.*s", jsonlen, cxt->str);
     FAILm(errbuf);
 }
 
 SUITE(json_parsing)
 {
-    char *jsonstr;
-    long jsonlen;
+    struct context cxt = { 0 };
+    int i;
 
-    for (int i = 0; i < g_n_files; ++i) {
-        jsonstr = load_whole_file(g_files[i], &jsonlen);
+    for (i = 0; i < g_n_files; ++i) {
+        cxt.str = load_whole_file(g_files[i], &cxt.len);
 
-        enum action expected;
         switch (g_suffixes[i][0]) {
         case 'y':
-            expected = ACTION_ACCEPT;
+            cxt.expected = ACTION_ACCEPT;
             break;
         case 'n':
-            expected = ACTION_REJECT;
+            cxt.expected = ACTION_REJECT;
             break;
         case 'i':
-            expected = ACTION_ACCEPT | ACTION_REJECT;
+            cxt.expected = ACTION_ACCEPT | ACTION_REJECT;
             break;
         default:
             fprintf(stderr,
@@ -114,24 +126,26 @@ SUITE(json_parsing)
         }
 
         greatest_set_test_suffix(g_suffixes[i]);
-        RUN_TESTp(check_parser, jsonstr, jsonlen, expected);
+        RUN_TEST1(check_parser, &cxt);
 
-        free(jsonstr);
+        free(cxt.str);
     }
 }
 
 SUITE(json_transform)
 {
-    char *jsonstr;
-    long jsonlen;
+    struct context cxt = { 0 };
+    int i;
 
-    for (int i = 0; i < g_n_files; ++i) {
-        jsonstr = load_whole_file(g_files[i], &jsonlen);
+    cxt.expected = ACTION_NONE;
+
+    for (i = 0; i < g_n_files; ++i) {
+        cxt.str = load_whole_file(g_files[i], &cxt.len);
 
         greatest_set_test_suffix(g_suffixes[i]);
-        RUN_TESTp(check_parser, jsonstr, jsonlen, ACTION_NONE);
+        RUN_TEST1(check_parser, &cxt);
 
-        free(jsonstr);
+        free(cxt.str);
     }
 }
 
@@ -140,10 +154,13 @@ GREATEST_MAIN_DEFS();
 int
 main(int argc, char *argv[])
 {
+    char *start, *end;
+    int i;
+
     GREATEST_MAIN_BEGIN();
 
-    for (int i = 0; i < argc; ++i) {
-        // we're assuming the files are after the "--" arg
+    for (i = 0; i < argc; ++i) {
+        /* we're assuming the files are after the "--" arg */
         if (0 == strcmp("--", argv[i]) && (i + 1 < argc)) {
             g_files = argv + (i + 1);
             g_n_files = argc - (i + 1);
@@ -152,17 +169,19 @@ main(int argc, char *argv[])
     }
     assert(g_n_files != 0 && "Couldn't locate files");
 
-    // create test suffixes for easy identification
+    /* create test suffixes for easy identification */
     g_suffixes = malloc(g_n_files * sizeof(char *));
-    char *start, *end;
-    for (int i = 0; i < g_n_files; ++i) {
+    for (i = 0; i < g_n_files; ++i) {
+        size_t size;
+
         if ((start = strchr(g_files[i], '/')))
             ++start;
         else
             start = g_files[i];
         end = strrchr(start, '.');
 
-        size_t size = end ? (end - start) : strlen(start);
+        size = end ? (size_t)(end - start) : strlen(start);
+
         g_suffixes[i] = malloc(size + 1);
         memcpy(g_suffixes[i], start, size);
         g_suffixes[i][size] = '\0';
