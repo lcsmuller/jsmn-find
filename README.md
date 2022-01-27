@@ -28,7 +28,7 @@ Download `jsmn-find.h` and the [dependencies](#dependencies) should be visible t
 ...
 jsmnfind *f = jsmnfind_init();
 
-r = jsmnfind_start(f, json, strlen(json)); // "s" is the char array holding the json content
+r = jsmnfind_start(f, json, strlen(json));
 
 // assume the JSON : { "foo": { "bar": [ 1, 2, 3] } }
 char *path[] = { "foo", "bar", "1" };

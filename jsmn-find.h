@@ -1,6 +1,10 @@
 #ifndef JSMN_FIND_H
 #define JSMN_FIND_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef JSMN_H
 #error "jsmn-find.h should be included after jsmn.h"
 #endif
@@ -262,5 +266,9 @@ jsmnfind_find(jsmnfind *handle, char *path[], int depth)
     return found ? found->val : NULL;
 }
 #endif /* JSMN_HEADER */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* JSMN_FIND_H */

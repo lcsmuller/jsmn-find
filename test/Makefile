@@ -3,7 +3,6 @@ CC ?= gcc
 
 PARSING_DIR   := test_parsing
 TRANSFORM_DIR := test_transform
-OBJDIR        := $(TOP)/obj
 
 TEST_PARSER := parser test
 
