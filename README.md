@@ -61,6 +61,7 @@ API
 ---
 
 * `jsmnfind_init()` - initialize a jsmnfind root
+* `jsmnfind_start()` - populate jsmnfind root with JSMN tokens
 * `jsmnfind_cleanup()` - cleanup jsmnfind root resources
 * `jsmnfind_find()` - locate a top JSMN token by its key
 * `jsmnfind_find_path()` - locate a JSMN token by its key path
