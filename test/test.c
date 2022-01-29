@@ -17,7 +17,7 @@ main(void)
 
     root = jsmnfind_init();
 
-    ret = jsmnfind_start(root, JSON, sizeof(JSON)-1);
+    ret = jsmnfind_start(root, JSON, sizeof(JSON) - 1);
     printf("Exit with %d\n", ret);
 
     f = jsmnfind_find_path(root, path, sizeof(path) / sizeof(char *));
@@ -27,10 +27,10 @@ main(void)
     else
         fprintf(stderr, "Couldn't locate field\n");
 
-    f = jsmnfind_find(root, "foo");
-    f = jsmnfind_find(f, "bar");
-    f = jsmnfind_find(f, "baz");
-    f = jsmnfind_find(f, "0");
+    f = jsmnfind_find(root, "foo", sizeof("foo") - 1);
+    f = jsmnfind_find(f, "bar", sizeof("bar") - 1);
+    f = jsmnfind_find(f, "baz", sizeof("baz") - 1);
+    f = jsmnfind_find(f, "0", sizeof("0") - 1);
     if (f)
         fprintf(stderr, "Found: %.*s\n", f->val->end - f->val->start,
                 JSON + f->val->start);

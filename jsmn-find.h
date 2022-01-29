@@ -55,9 +55,10 @@ JSMN_API int jsmnfind_start(jsmnfind *root, const char json[], size_t size);
  *
  * @param root the @ref jsmnfind structure initialized with jsmnfind_init()
  * @param key the key too be matched
+ * @param size size of the key too be matched
  * @return the key/value pair matched to `key`
  */
-JSMN_API jsmnfind *jsmnfind_find(jsmnfind *root, const char key[]);
+JSMN_API jsmnfind *jsmnfind_find(jsmnfind *root, const char key[], size_t size);
 
 /**
  * @brief Find a value `jsmntok_t` by its key path
@@ -239,14 +240,14 @@ jsmnfind_start(jsmnfind *root, const char js[], size_t size)
 }
 
 jsmnfind *
-jsmnfind_find(jsmnfind *head, const char key[])
+jsmnfind_find(jsmnfind *head, const char key[], size_t size)
 {
     jsmnfind *found = NULL;
 
     if (!key) return NULL;
 
     if (JSMN_OBJECT == head->val->type) {
-        HASH_FIND_STR(head->child, key, found);
+        HASH_FIND(hh, head->child, key, size, found);
     }
     else if (JSMN_ARRAY == head->val->type) {
         char *endptr;
@@ -267,7 +268,7 @@ jsmnfind_find_path(jsmnfind *head, char *const path[], int depth)
 
     for (i = 0; i < depth; ++i) {
         if (!iter) continue;
-        found = jsmnfind_find(iter, path[i]);
+        found = jsmnfind_find(iter, path[i], strlen(path[i]));
         if (!found) break;
         iter = found;
     }

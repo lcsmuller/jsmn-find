@@ -31,7 +31,7 @@ jsmnfind *root = jsmnfind_init();
 r = jsmnfind_start(root, json, strlen(json));
 
 // assume the JSON : { "foo": { "bar": [ 1, 2, 3 ] } }
-jsmnfind *f = jsmnfind_find(root, "foo");
+jsmnfind *f = jsmnfind_find(root, "foo", strlen("foo"));
 // Found: { "bar" : [ 1, 2, 3 ] }
 printf("Found: %.*s\n", f->val->end - f->val->start, json + f->val->start);
 ...
