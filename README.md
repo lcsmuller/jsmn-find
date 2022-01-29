@@ -32,7 +32,7 @@ r = jsmnfind_start(root, json, strlen(json));
 
 // assume the JSON : { "foo": { "bar": [ 1, 2, 3 ] } }
 jsmnfind *f = jsmnfind_find(root, "foo");
-// Found: 2
+// Found: { "bar" : [ 1, 2, 3 ] }
 printf("Found: %.*s\n", f->val->end - f->val->start, json + f->val->start);
 ...
 // assume the JSON : [ 1, 2, [ 1, [ { "b":true } ] ] ]
