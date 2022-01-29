@@ -9,126 +9,135 @@ extern "C" {
 #error "jsmn-find.h should be included after jsmn.h"
 #endif
 
-#ifdef JSMN_HEADER
-typedef struct jsmnfind jsmnfind;
-#else
-#include <stdio.h>
-#include <stdlib.h>
 #include "uthash.h"
 
 /** @brief store key/value jsmn tokens in a hashtable */
-struct jsmnpair {
+typedef struct jsmnfind {
     /** the key of the pair (null if root) */
     jsmntok_t *key;
     /** the value of the pair (null if unexistent) */
     jsmntok_t *val;
     /** the positional index of the pair */
     int idx;
-    /** this structure inner fields root */
-    struct jsmnpair *head;
-    /** make this structure inner fields hashable */
+    /** this structure fields */
+    struct jsmnfind *child;
+    /** make this structure fields hashable */
     UT_hash_handle hh;
-};
-
-/** @brief store key/value pairs */
-typedef struct jsmnfind {
-    /** tokens storage cap */
-    size_t real_ntoks;
-    /** amount of tokens currently stored */
-    size_t ntoks;
-    /** the jsmn tokens array */
-    jsmntok_t *toks;
-    /** the key/value pair root */
-    struct jsmnpair *root;
 } jsmnfind;
-#endif /* JSMN_HEADER */
 
 /**
- * @brief Initialize a @ref jsmnfind handle
+ * @brief Initialize a @ref jsmnfind root
  *
- * @return a @ref jsmnfind handle that should be cleanup up with
- * jsmnfind_cleanup()
+ * @return a @ref jsmnfind root that should be cleanup up with
+ *      jsmnfind_cleanup()
  */
 JSMN_API jsmnfind *jsmnfind_init(void);
 
-/** @brief Cleanup a @ref jsmnfind handle */
-JSMN_API void jsmnfind_cleanup(jsmnfind *handle);
+/**
+ * @brief Cleanup a @ref jsmnfind handle
+ *
+ * @param root the @ref jsmnfind root initialized with jsmnfind_init()
+ */
+JSMN_API void jsmnfind_cleanup(jsmnfind *root);
 
 /**
- * @brief Populate the @ref jsmnfind structure with jsmn tokens
+ * @brief Populate the @ref jsmnfind root with jsmn tokens
  *
- * @param handle the @ref jsmnfind structure initialized with jsmnfind_init()
+ * @param root the @ref jsmnfind structure initialized with jsmnfind_init()
  * @param json the raw JSON string
  * @param size the raw JSON length
  * @return a negative number for error, or the number of tokens found
  */
-JSMN_API int jsmnfind_start(jsmnfind *handle, const char json[], size_t size);
+JSMN_API int jsmnfind_start(jsmnfind *root, const char json[], size_t size);
+
+/**
+ * @brief Find a value `jsmntok_t` by its key
+ *
+ * @param root the @ref jsmnfind structure initialized with jsmnfind_init()
+ * @param key the key too be matched
+ * @return the key/value pair matched to `key`
+ */
+JSMN_API jsmnfind *jsmnfind_find(jsmnfind *root, const char key[]);
 
 /**
  * @brief Find a value `jsmntok_t` by its key path
  *
- * @param handle the @ref jsmnfind structure initialized with jsmnfind_init()
+ * @param root the @ref jsmnfind structure initialized with jsmnfind_init()
  * @param path an array of key path strings, from least to highest depth
  * @param depth the depth level of the last `path` key
- * @return the jsmn value matched to `path`
+ * @return the key/value pair matched to `path`
  */
-JSMN_API jsmntok_t *jsmnfind_find(jsmnfind *handle, char *path[], int depth);
+JSMN_API jsmnfind *jsmnfind_find_path(jsmnfind *root,
+                                      char *const path[],
+                                      int depth);
 
 #ifndef JSMN_HEADER
-static struct jsmnpair *
-_jsmnpair_init(void)
+#include <stdio.h>
+#include <stdlib.h>
+
+struct _jsmnroot {
+    /**
+     * the root jsmnfind
+     * @note `root` must be the first element so that `struct _jsmnroot` can be
+     *      safely cast to `struct jsmnfind` */
+    jsmnfind root;
+    /** tokens storage cap */
+    size_t real_ntoks;
+    /** amount of tokens currently stored */
+    size_t ntoks;
+};
+
+static jsmnfind *
+_jsmnfind_init(void)
 {
-    struct jsmnpair *pair = calloc(1, sizeof *pair);
-    if (!pair) return NULL;
-
-    return pair;
-}
-
-static void
-_jsmnpair_cleanup(struct jsmnpair *pair)
-{
-    if (pair->val
-        && (JSMN_OBJECT == pair->val->type || JSMN_ARRAY == pair->val->type))
-    {
-        struct jsmnpair *curr, *tmp;
-
-        HASH_ITER(hh, pair->head, curr, tmp)
-        {
-            HASH_DEL(pair->head, curr);
-            _jsmnpair_cleanup(curr);
-        }
-    }
-    free(pair);
+    return calloc(1, sizeof(jsmnfind));
 }
 
 jsmnfind *
 jsmnfind_init(void)
 {
-    jsmnfind *handle = calloc(1, sizeof *handle);
-    if (!handle) return NULL;
+    struct _jsmnroot *r = calloc(1, sizeof *r);
+    if (!r) return NULL;
 
-    handle->real_ntoks = 128;
-    handle->toks = malloc(handle->real_ntoks * sizeof *handle->toks);
-    if (!handle->toks) {
-        free(handle);
+    r->real_ntoks = 128;
+    r->root.val = malloc(r->real_ntoks * sizeof *r->root.val);
+    if (!r->root.val) {
+        free(r);
         return NULL;
     }
-    return handle;
+    return &r->root;
+}
+
+static void
+_jsmnfind_cleanup(jsmnfind *head)
+{
+    if (!head) return;
+
+    if (JSMN_OBJECT == head->val->type || JSMN_ARRAY == head->val->type) {
+        jsmnfind *iter, *tmp;
+
+        HASH_ITER(hh, head->child, iter, tmp)
+        {
+            HASH_DEL(head->child, iter);
+            _jsmnfind_cleanup(iter);
+            free(iter);
+        }
+    }
 }
 
 void
-jsmnfind_cleanup(jsmnfind *handle)
+jsmnfind_cleanup(jsmnfind *root)
 {
-    _jsmnpair_cleanup(handle->root);
-    free(handle->toks);
-    free(handle);
+    _jsmnfind_cleanup(root);
+    free(root->val);
+    free(root);
 }
 
 static int
 _jsmnfind_get_pairs(const char js[],
                     jsmntok_t *tok,
                     size_t ntoks,
-                    struct jsmnpair *parent)
+                    jsmnfind *head)
 {
     int offset = 0;
 
@@ -136,12 +145,12 @@ _jsmnfind_get_pairs(const char js[],
 
     switch (tok->type) {
     case JSMN_OBJECT: {
-        struct jsmnpair *curr;
+        jsmnfind *curr;
         int ret;
         int i;
 
         for (i = 0; i < tok->size; ++i) {
-            curr = _jsmnpair_init();
+            curr = _jsmnfind_init();
             curr->idx = i;
             curr->key = tok + 1 + offset;
 
@@ -158,17 +167,18 @@ _jsmnfind_get_pairs(const char js[],
 
                 offset += ret;
             }
-            HASH_ADD_KEYPTR(hh, parent->head, js + curr->key->start,
+
+            HASH_ADD_KEYPTR(hh, head->child, js + curr->key->start,
                             curr->key->end - curr->key->start, curr);
         }
     } break;
     case JSMN_ARRAY: {
-        struct jsmnpair *curr;
+        jsmnfind *curr;
         int ret;
         int i;
 
         for (i = 0; i < tok->size; ++i) {
-            curr = _jsmnpair_init();
+            curr = _jsmnfind_init();
             curr->idx = i;
             curr->val = tok + 1 + offset;
 
@@ -177,7 +187,7 @@ _jsmnfind_get_pairs(const char js[],
 
             offset += ret;
 
-            HASH_ADD_INT(parent->head, idx, curr);
+            HASH_ADD_INT(head->child, idx, curr);
         }
     } break;
     case JSMN_STRING:
@@ -193,30 +203,20 @@ _jsmnfind_get_pairs(const char js[],
 }
 
 int
-jsmnfind_start(jsmnfind *handle, const char js[], size_t size)
+jsmnfind_start(jsmnfind *root, const char js[], size_t size)
 {
+    struct _jsmnroot *r = (struct _jsmnroot *)root;
     jsmn_parser parser;
     int ret;
 
-    /* cleanup existing pairs for reuse of handle */
-    if (handle->root) _jsmnpair_cleanup(handle->root);
-
-    handle->root = _jsmnpair_init();
-    if (!handle->root) return JSMN_ERROR_NOMEM;
-
     /* Prepare parser */
     jsmn_init(&parser);
-
     while (1) {
-        ret = jsmn_parse(&parser, js, size, handle->toks, handle->real_ntoks);
+        ret = jsmn_parse(&parser, js, size, root->val, r->real_ntoks);
 
         if (ret >= 0) {
-            handle->ntoks = parser.toknext;
-            handle->root->val = &handle->toks[0];
-
-            ret = _jsmnfind_get_pairs(js, handle->toks, handle->ntoks,
-                                      handle->root);
-
+            r->ntoks = parser.toknext;
+            ret = _jsmnfind_get_pairs(js, root->val, r->ntoks, root);
             break;
         }
         else {
@@ -224,46 +224,54 @@ jsmnfind_start(jsmnfind *handle, const char js[], size_t size)
                 break;
             }
             else {
-                size_t new_ntoks = handle->real_ntoks * 2;
+                size_t new_ntoks = r->real_ntoks * 2;
                 void *tmp;
 
-                tmp = realloc(handle->toks, new_ntoks * sizeof *handle->toks);
+                tmp = realloc(root->val, new_ntoks * sizeof *root->val);
                 if (!tmp) return JSMN_ERROR_NOMEM;
 
-                handle->real_ntoks = new_ntoks;
-                handle->toks = tmp;
+                r->real_ntoks = new_ntoks;
+                root->val = tmp;
             }
         }
     }
-
     return ret;
 }
 
-jsmntok_t *
-jsmnfind_find(jsmnfind *handle, char *path[], int depth)
+jsmnfind *
+jsmnfind_find(jsmnfind *head, const char key[])
 {
-    struct jsmnpair *iter = handle->root, *found = NULL;
+    jsmnfind *found = NULL;
+
+    if (!key) return NULL;
+
+    if (JSMN_OBJECT == head->val->type) {
+        HASH_FIND_STR(head->child, key, found);
+    }
+    else if (JSMN_ARRAY == head->val->type) {
+        char *endptr;
+        int idx = (int)strtol(key, &endptr, 10);
+
+        if (endptr == key) return NULL;
+
+        HASH_FIND_INT(head->child, &idx, found);
+    }
+    return found;
+}
+
+jsmnfind *
+jsmnfind_find_path(jsmnfind *head, char *const path[], int depth)
+{
+    jsmnfind *iter = head, *found = NULL;
     int i;
 
     for (i = 0; i < depth; ++i) {
-        if (!iter->val) continue;
-
-        if (JSMN_OBJECT == iter->val->type) {
-            HASH_FIND_STR(iter->head, path[i], found);
-        }
-        else if (JSMN_ARRAY == iter->val->type) {
-            char *endptr;
-            int idx = (int)strtol(path[i], &endptr, 10);
-
-            if (endptr == path[i]) return NULL;
-
-            HASH_FIND_INT(iter->head, &idx, found);
-        }
-
+        if (!iter) continue;
+        found = jsmnfind_find(iter, path[i]);
+        if (!found) break;
         iter = found;
     }
-
-    return found ? found->val : NULL;
+    return found;
 }
 #endif /* JSMN_HEADER */
 

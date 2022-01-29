@@ -26,21 +26,22 @@ Download `jsmn-find.h` and the [dependencies](#dependencies) should be visible t
 #include "jsmn-find.h"
 
 ...
-jsmnfind *f = jsmnfind_init();
+jsmnfind *root = jsmnfind_init();
 
-r = jsmnfind_start(f, json, strlen(json));
+r = jsmnfind_start(root, json, strlen(json));
 
-// assume the JSON : { "foo": { "bar": [ 1, 2, 3] } }
-char *path[] = { "foo", "bar", "1" };
-jsmntok_t *tok = jsmnfind_find(f, path, sizeof(path) / sizeof(char *));
-printf("Found: %.*s\n", tok->end - tok->start, json + tok->start); // Found: 2
+// assume the JSON : { "foo": { "bar": [ 1, 2, 3 ] } }
+jsmnfind *f = jsmnfind_find(root, "foo");
+// Found: 2
+printf("Found: %.*s\n", f->val->end - f->val->start, json + f->val->start);
 ...
 // assume the JSON : [ 1, 2, [ 1, [ { "b":true } ] ] ]
 char *path[] = { "2", "1", "0", "b" };
-jsmntok_t *tok = jsmnfind_find(f, path, sizeof(path) / sizeof(char *));
-printf("Found: %.*s\n", tok->end - tok->start, json + tok->start); // Found: true
+jsmnfind *f = jsmnfind_find_path(root, path, sizeof(path) / sizeof(char *));
+// Found: true
+printf("Found: %.*s\n", f->val->end - f->val->start, json + f->val->start);
 ...
-jsmnfind_cleanup(f); // don't forget to cleanup jsmnfind when you're done
+jsmnfind_cleanup(root); // don't forget to cleanup jsmnfind when you're done
 ```
 
 jsmn-find is single-header and should be compatible with jsmn additional macros for more complex uses cases. `#define JSMN_STATIC` hides all jsmn-find API symbols by making them static. Also, if you want to include `jsmn-find.h` from multiple C files, to avoid duplication of symbols you may define `JSMN_HEADER` macro.
@@ -56,6 +57,14 @@ jsmn-find is single-header and should be compatible with jsmn additional macros 
 #include "jsmn-find.h"
 ```
 
+API
+---
+
+* `jsmnfind_init()` - initialize a jsmnfind root
+* `jsmnfind_cleanup()` - cleanup jsmnfind root resources
+* `jsmnfind_find()` - locate a top JSMN token by its key
+* `jsmnfind_find_path()` - locate a JSMN token by its key path
+
 More Documentation
 ------------------
 
@@ -65,5 +74,6 @@ Read jsmn documentation for additional information:
 Other Info
 ----------
 
-This software is distributed under MIT license, so feel free to integrate it in your commercial products.
+This software is distributed under [MIT license](www.opensource.org/licenses/mit-license.php),
+so feel free to integrate it in your commercial products.
 
