@@ -244,7 +244,7 @@ jsmnfind_find(jsmnfind *head, const char key[], size_t size)
 {
     jsmnfind *found = NULL;
 
-    if (!key) return NULL;
+    if (!key || !head) return NULL;
 
     if (JSMN_OBJECT == head->val->type) {
         HASH_FIND(hh, head->child, key, size, found);
