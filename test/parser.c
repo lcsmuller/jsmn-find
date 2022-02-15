@@ -72,12 +72,12 @@ check_parser(struct context *cxt)
     }
 
     if (0 == pid) { /* child process */
-        jsmnfind *root = jsmnfind_init();
+        jsmnf *root = jsmnf_init();
         int ret;
 
-        ret = jsmnfind_start(root, cxt->str, cxt->len);
+        ret = jsmnf_start(root, cxt->str, cxt->len);
 
-        jsmnfind_cleanup(root);
+        jsmnf_cleanup(root);
 
         _exit(ret >= 0 ? EXIT_SUCCESS : EXIT_FAILURE);
     }

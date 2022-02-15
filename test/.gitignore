@@ -1,6 +1,9 @@
 # Ignore all
 *
 # But these
+test_parsing
+test_transform
+!greatest.h
 !.gitignore
 !*.c
 !Makefile
