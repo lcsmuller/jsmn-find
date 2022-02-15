@@ -149,6 +149,36 @@ SUITE(json_transform)
     }
 }
 
+TEST
+check_unescaping(void)
+{
+    char *pairs[][2] = {
+        { "áéíóú", "\\u00e1\\u00e9\\u00ed\\u00f3\\u00fa" },
+        { "\"quote\"", "\"quote\"" },
+        { "😊", "\\ud83d\\ude0a" },
+        { "müller", "m\\u00fcller" },
+        { "müller", "m\\u00fcller" },
+    };
+    size_t i;
+
+    for (i = 0; i < sizeof(pairs) / sizeof *pairs; ++i) {
+        char *unesc = NULL;
+        size_t len_unesc;
+
+        jsmnf_unescape(&unesc, &len_unesc, pairs[i][1], strlen(pairs[i][1]));
+
+        ASSERT(unesc != NULL);
+        ASSERT_STR_EQ(pairs[i][0], unesc);
+    }
+
+    PASS();
+}
+
+SUITE(json_unescape)
+{
+    RUN_TEST(check_unescaping);
+}
+
 GREATEST_MAIN_DEFS();
 
 int
@@ -167,28 +197,30 @@ main(int argc, char *argv[])
             break;
         }
     }
-    assert(g_n_files != 0 && "Couldn't locate files");
 
-    /* create test suffixes for easy identification */
-    g_suffixes = malloc(g_n_files * sizeof(char *));
-    for (i = 0; i < g_n_files; ++i) {
-        size_t size;
+    if (g_n_files) {
+        /* create test suffixes for easy identification */
+        g_suffixes = malloc(g_n_files * sizeof(char *));
+        for (i = 0; i < g_n_files; ++i) {
+            size_t size;
 
-        if ((start = strchr(g_files[i], '/')))
-            ++start;
-        else
-            start = g_files[i];
-        end = strrchr(start, '.');
+            if ((start = strchr(g_files[i], '/')))
+                ++start;
+            else
+                start = g_files[i];
+            end = strrchr(start, '.');
 
-        size = end ? (size_t)(end - start) : strlen(start);
+            size = end ? (size_t)(end - start) : strlen(start);
 
-        g_suffixes[i] = malloc(size + 1);
-        memcpy(g_suffixes[i], start, size);
-        g_suffixes[i][size] = '\0';
+            g_suffixes[i] = malloc(size + 1);
+            memcpy(g_suffixes[i], start, size);
+            g_suffixes[i][size] = '\0';
+        }
+
+        RUN_SUITE(json_parsing);
+        RUN_SUITE(json_transform);
     }
-
-    RUN_SUITE(json_parsing);
-    RUN_SUITE(json_transform);
+    RUN_SUITE(json_unescape);
 
     GREATEST_MAIN_END();
 }

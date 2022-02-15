@@ -70,9 +70,12 @@ JSMN_API jsmnf *jsmnf_find(jsmnf *root, const char key[], size_t size);
  */
 JSMN_API jsmnf *jsmnf_find_path(jsmnf *root, char *const path[], int depth);
 
+JSMN_API int jsmnf_unescape(char **output_p, size_t *output_len_p, char *input, size_t input_len);
+
 #ifndef JSMN_HEADER
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 struct _jsmnroot {
     /**
@@ -268,6 +271,319 @@ jsmnf_find_path(jsmnf *head, char *const path[], int depth)
         iter = found;
     }
     return found;
+}
+
+static int
+read_4_digits(char **str_p, char *const buf_end, unsigned *x)
+{
+    char *str = *str_p;
+    char buf[5] = { 0 };
+    unsigned v;
+    int i;
+
+    if (buf_end - str < 4) return 0;
+
+    for (i = 0; i < 4; i++) {
+        char c = str[i];
+
+        buf[i] = c;
+        if (isxdigit(c)) continue;
+
+        return 0;
+    }
+
+    sscanf(buf, "%x", &v);
+
+    *x = v;
+    *str_p = str + 4;
+
+    return 1;
+}
+
+static int
+utf16_is_first_surrogate(unsigned x)
+{
+    return 0xD800 <= x && x <= 0xDBFF;
+}
+
+static int
+utf16_is_second_surrogate(unsigned x)
+{
+    return 0xDC00 <= x && x <= 0xDFFF;
+}
+
+static unsigned long
+utf16_combine_surrogate(unsigned w1, unsigned w2)
+{
+    return ((((unsigned long)w1 & 0x3FF) << 10) | (w2 & 0x3FF)) + 0x10000;
+}
+
+static const uint32_t utf_illegal = 0xFFFFFFFFu;
+
+static int
+utf_valid(uint32_t v)
+{
+    if (v > 0x10FFFF) return 0;
+    if (0xD800 <= v && v <= 0xDFFF) /* surrogates */
+        return 0;
+    return 1;
+}
+
+static int
+utf8_is_trail(char ci)
+{
+    unsigned char c = ci;
+    return (c & 0xC0) == 0x80;
+}
+
+static int
+utf8_trail_length(unsigned char c)
+{
+    if (c < 128) return 0;
+    if (c < 194) return -1;
+    if (c < 224) return 1;
+    if (c < 240) return 2;
+    if (c <= 244) return 3;
+    return -1;
+}
+
+static int
+utf8_width(uint32_t value)
+{
+    if (value <= 0x7F) {
+        return 1;
+    }
+    else if (value <= 0x7FF) {
+        return 2;
+    }
+    else if (value <= 0xFFFF) {
+        return 3;
+    }
+    else {
+        return 4;
+    }
+}
+
+/* See RFC 3629
+   Based on: http://www.w3.org/International/questions/qa-forms-utf-8
+*/
+static uint32_t
+next(char **p, char *e, int html)
+{
+    unsigned char lead, tmp;
+    int trail_size;
+    uint32_t c;
+
+    if (*p == e) return utf_illegal;
+
+    lead = **p;
+    (*p)++;
+
+    /* First byte is fully validated here */
+    trail_size = utf8_trail_length(lead);
+
+    if (trail_size < 0) return utf_illegal;
+
+    /*
+      Ok as only ASCII may be of size = 0
+      also optimize for ASCII text
+    */
+    if (trail_size == 0) {
+        if (!html || (lead >= 0x20 && lead != 0x7F) || lead == 0x9
+            || lead == 0x0A || lead == 0x0D)
+            return lead;
+        return utf_illegal;
+    }
+
+    c = lead & ((1 << (6 - trail_size)) - 1);
+
+    /* Read the rest */
+    switch (trail_size) {
+    case 3:
+        if (*p == e) return utf_illegal;
+        tmp = **p;
+        (*p)++;
+        if (!utf8_is_trail(tmp)) return utf_illegal;
+        c = (c << 6) | (tmp & 0x3F);
+    /* fall-through */
+    case 2:
+        if (*p == e) return utf_illegal;
+        tmp = **p;
+        (*p)++;
+        if (!utf8_is_trail(tmp)) return utf_illegal;
+        c = (c << 6) | (tmp & 0x3F);
+    /* fall-through */
+    case 1:
+        if (*p == e) return utf_illegal;
+        tmp = **p;
+        (*p)++;
+        if (!utf8_is_trail(tmp)) return utf_illegal;
+        c = (c << 6) | (tmp & 0x3F);
+    }
+
+    /* Check code point validity: no surrogates and
+       valid range */
+    if (!utf_valid(c)) return utf_illegal;
+
+    /* make sure it is the most compact representation */
+    if (utf8_width(c) != trail_size + 1) return utf_illegal;
+
+    if (html && c < 0xA0) return utf_illegal;
+    return c;
+}
+
+static int
+utf8_validate(char *p, char *e)
+{
+    while (p != e)
+        if (next(&p, e, 0) == utf_illegal) return 0;
+    return 1;
+}
+
+struct utf8_seq {
+    char c[4];
+    unsigned len;
+};
+
+static void
+utf8_encode(unsigned long value, struct utf8_seq *out)
+{
+    /*struct utf8_seq out={0}; */
+    if (value <= 0x7F) {
+        out->c[0] = value;
+        out->len = 1;
+    }
+    else if (value <= 0x7FF) {
+        out->c[0] = (value >> 6) | 0xC0;
+        out->c[1] = (value & 0x3F) | 0x80;
+        out->len = 2;
+    }
+    else if (value <= 0xFFFF) {
+        out->c[0] = (value >> 12) | 0xE0;
+        out->c[1] = ((value >> 6) & 0x3F) | 0x80;
+        out->c[2] = (value & 0x3F) | 0x80;
+        out->len = 3;
+    }
+    else {
+        out->c[0] = (value >> 18) | 0xF0;
+        out->c[1] = ((value >> 12) & 0x3F) | 0x80;
+        out->c[2] = ((value >> 6) & 0x3F) | 0x80;
+        out->c[3] = (value & 0x3F) | 0x80;
+        out->len = 4;
+    }
+}
+
+static void *
+append(unsigned long x, char *d)
+{
+    unsigned i;
+    struct utf8_seq seq = { { 0 }, 0 };
+
+    utf8_encode(x, &seq);
+
+    for (i = 0; i < seq.len; ++i, d++)
+        *d = seq.c[i];
+
+    return d;
+}
+
+int
+jsmnf_unescape(char **output_p,
+               size_t *output_len_p,
+               char *input,
+               size_t input_len)
+{
+    enum { TESTING = 1, ALLOCATING, UNESCAPING } state = TESTING;
+
+    char *const input_start = input, *const input_end = input + input_len;
+    char *out_start = NULL, *d = NULL, *s = NULL;
+    unsigned first_surrogate;
+    int second_surrogate_expected;
+    char c;
+
+second_iter:
+    first_surrogate = 0;
+    second_surrogate_expected = 0;
+
+    for (s = input_start; s < input_end;) {
+        c = *s++;
+
+        if (second_surrogate_expected && c != '\\') goto _err;
+        if (0 <= c && c <= 0x1F) goto _err;
+
+        if ('\\' == c) {
+            /* break the while loop */
+            if (TESTING == state) {
+                state = ALLOCATING;
+                break;
+            }
+
+            /* return if input is a well-formed json string */
+            if (s == input_end) goto _err;
+
+            c = *s++;
+
+            if (second_surrogate_expected && c != 'u') goto _err;
+
+            switch (c) {
+            case '"': case '\\': case '/':
+                *d++ = c;
+                break;
+            case 'b': *d++ = '\b'; break;
+            case 'f': *d++ = '\f'; break;
+            case 'n': *d++ = '\n'; break;
+            case 'r': *d++ = '\r'; break;
+            case 't': *d++ = '\t'; break;
+            case 'u': {
+                unsigned x;
+
+                if (!read_4_digits(&s, input_end, &x)) goto _err;
+
+                if (second_surrogate_expected) {
+                    if (!utf16_is_second_surrogate(x)) goto _err;
+
+                    d = append(utf16_combine_surrogate(first_surrogate, x), d);
+                    second_surrogate_expected = 0;
+                }
+                else if (utf16_is_first_surrogate(x)) {
+                    second_surrogate_expected = 1;
+                    first_surrogate = x;
+                }
+                else {
+                    d = append(x, d);
+                }
+            } break;
+            default: goto _err;
+            }
+        }
+        else if (UNESCAPING == state) {
+            *d++ = c;
+        }
+    }
+
+    switch (state) {
+    case UNESCAPING:
+        if (!utf8_validate(out_start, d)) goto _err;
+
+        *output_p = out_start;
+        *output_len_p = d - out_start;
+        return 1;
+    case ALLOCATING:
+        out_start = calloc(1, input_len);
+        d = out_start;
+        state = UNESCAPING;
+        goto second_iter;
+    case TESTING:
+        *output_p = input_start;
+        *output_len_p = input_len;
+        return 1;
+    default:
+        break;
+    }
+
+_err:
+    if (UNESCAPING == state) free(out_start);
+    return 0;
 }
 #endif /* JSMN_HEADER */
 

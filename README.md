@@ -65,6 +65,7 @@ API
 * `jsmnf_cleanup()` - cleanup jsmnf root resources
 * `jsmnf_find()` - locate a top JSMN token by its key
 * `jsmnf_find_path()` - locate a JSMN token by its key path
+* `jsmnf_unescape()` - unescape a Unicode string
 
 More Documentation
 ------------------
@@ -77,4 +78,3 @@ Other Info
 
 This software is distributed under [MIT license](www.opensource.org/licenses/mit-license.php),
 so feel free to integrate it in your commercial products.
-
