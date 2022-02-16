@@ -4,9 +4,10 @@ CC ?= gcc
 PARSING_DIR   := test_parsing
 TRANSFORM_DIR := test_transform
 
-TEST_PARSER := parser test
+EXE_PARSER := parser
+EXE_FUNCTIONS := functions
 
-EXES := $(TEST_PARSER)
+EXES := $(EXE_PARSER) $(EXE_FUNCTIONS)
 
 CFLAGS += -Wall -Wextra -Wpedantic -std=c89 -g -I. -I$(TOP)
 
@@ -15,11 +16,14 @@ all: $(EXES)
 $(EXES): %: %.c
 	$(CC) $(CFLAGS) $(XFLAGS) -o $@ $^
 
-test_parse: $(EXES) $(PARSING_DIR)
-	- ./$(TEST_PARSER) -e -s json_parsing -- $(PARSING_DIR)/*
+test: test_parse test_transform test_functions
 
-test_transform: $(EXES) $(TRANSFORM_DIR)
-	- ./$(TEST_PARSER) -e -s json_transform -- $(TRANSFORM_DIR)/*
+test_functions: $(EXE_FUNCTIONS)
+	- ./$< -e
+test_parse: $(EXE_PARSER) $(PARSING_DIR)
+	- ./$< -e -s json_parsing -- $(PARSING_DIR)/*
+test_transform: $(EXE_PARSER) $(TRANSFORM_DIR)
+	- ./$< -e -s json_transform -- $(TRANSFORM_DIR)/*
 
 clean:
 	rm -rf $(EXES) *.gcno *.gcda
