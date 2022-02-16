@@ -162,13 +162,12 @@ check_unescaping(void)
     size_t i;
 
     for (i = 0; i < sizeof(pairs) / sizeof *pairs; ++i) {
-        char *unesc = NULL;
-        size_t len_unesc;
+        char *str = NULL;
 
-        jsmnf_unescape(&unesc, &len_unesc, pairs[i][1], strlen(pairs[i][1]));
+        jsmnf_unescape(&str, pairs[i][1], strlen(pairs[i][1]));
 
-        ASSERT(unesc != NULL);
-        ASSERT_STR_EQ(pairs[i][0], unesc);
+        ASSERT(str != NULL);
+        ASSERT_STR_EQ(pairs[i][0], str);
     }
 
     PASS();

@@ -70,7 +70,15 @@ JSMN_API jsmnf *jsmnf_find(jsmnf *root, const char key[], size_t size);
  */
 JSMN_API jsmnf *jsmnf_find_path(jsmnf *root, char *const path[], int depth);
 
-JSMN_API int jsmnf_unescape(char **output_p, size_t *output_len_p, char *input, size_t input_len);
+/**
+ * @brief Utility function for unescaping a Unicode string
+ *
+ * @param p_dest destination buffer
+ * @param src source string to be unescaped
+ * @param size source string size
+ * @return size of unescaped string if succesfull, 0 otherwise
+ */
+JSMN_API size_t jsmnf_unescape(char **p_dest, char src[], size_t size);
 
 #ifndef JSMN_HEADER
 #include <stdio.h>
@@ -274,14 +282,14 @@ jsmnf_find_path(jsmnf *head, char *const path[], int depth)
 }
 
 static int
-read_4_digits(char **str_p, char *const buf_end, unsigned *x)
+read_4_digits(char **str_p, const char *src_end, unsigned *x)
 {
     char *str = *str_p;
     char buf[5] = { 0 };
     unsigned v;
     int i;
 
-    if (buf_end - str < 4) return 0;
+    if (src_end - str < 4) return 0;
 
     for (i = 0; i < 4; i++) {
         char c = str[i];
@@ -318,10 +326,10 @@ utf16_combine_surrogate(unsigned w1, unsigned w2)
     return ((((unsigned long)w1 & 0x3FF) << 10) | (w2 & 0x3FF)) + 0x10000;
 }
 
-static const uint32_t utf_illegal = 0xFFFFFFFFu;
+static const unsigned long utf_illegal = 0xFFFFFFFFu;
 
 static int
-utf_valid(uint32_t v)
+utf_valid(unsigned long v)
 {
     if (v > 0x10FFFF) return 0;
     if (0xD800 <= v && v <= 0xDFFF) /* surrogates */
@@ -348,31 +356,26 @@ utf8_trail_length(unsigned char c)
 }
 
 static int
-utf8_width(uint32_t value)
+utf8_width(unsigned long value)
 {
-    if (value <= 0x7F) {
+    if (value <= 0x7F)
         return 1;
-    }
-    else if (value <= 0x7FF) {
+    else if (value <= 0x7FF)
         return 2;
-    }
-    else if (value <= 0xFFFF) {
+    else if (value <= 0xFFFF)
         return 3;
-    }
-    else {
+    else
         return 4;
-    }
 }
 
 /* See RFC 3629
-   Based on: http://www.w3.org/International/questions/qa-forms-utf-8
-*/
-static uint32_t
+   Based on: http://www.w3.org/International/questions/qa-forms-utf-8 */
+static unsigned long
 next(char **p, char *e, int html)
 {
     unsigned char lead, tmp;
     int trail_size;
-    uint32_t c;
+    unsigned long c;
 
     if (*p == e) return utf_illegal;
 
@@ -384,10 +387,8 @@ next(char **p, char *e, int html)
 
     if (trail_size < 0) return utf_illegal;
 
-    /*
-      Ok as only ASCII may be of size = 0
-      also optimize for ASCII text
-    */
+    /* Ok as only ASCII may be of size = 0
+      also optimize for ASCII text */
     if (trail_size == 0) {
         if (!html || (lead >= 0x20 && lead != 0x7F) || lead == 0x9
             || lead == 0x0A || lead == 0x0D)
@@ -487,15 +488,12 @@ append(unsigned long x, char *d)
     return d;
 }
 
-int
-jsmnf_unescape(char **output_p,
-               size_t *output_len_p,
-               char *input,
-               size_t input_len)
+size_t
+jsmnf_unescape(char **p_dest, char src[], size_t size)
 {
     enum { TESTING = 1, ALLOCATING, UNESCAPING } state = TESTING;
 
-    char *const input_start = input, *const input_end = input + input_len;
+    char *src_start = src, *src_end = src + size;
     char *out_start = NULL, *d = NULL, *s = NULL;
     unsigned first_surrogate;
     int second_surrogate_expected;
@@ -505,7 +503,7 @@ second_iter:
     first_surrogate = 0;
     second_surrogate_expected = 0;
 
-    for (s = input_start; s < input_end;) {
+    for (s = src_start; s < src_end;) {
         c = *s++;
 
         if (second_surrogate_expected && c != '\\') goto _err;
@@ -518,8 +516,8 @@ second_iter:
                 break;
             }
 
-            /* return if input is a well-formed json string */
-            if (s == input_end) goto _err;
+            /* return if src is a well-formed json string */
+            if (s == src_end) goto _err;
 
             c = *s++;
 
@@ -537,7 +535,7 @@ second_iter:
             case 'u': {
                 unsigned x;
 
-                if (!read_4_digits(&s, input_end, &x)) goto _err;
+                if (!read_4_digits(&s, src_end, &x)) goto _err;
 
                 if (second_surrogate_expected) {
                     if (!utf16_is_second_surrogate(x)) goto _err;
@@ -553,7 +551,8 @@ second_iter:
                     d = append(x, d);
                 }
             } break;
-            default: goto _err;
+            default:
+                goto _err;
             }
         }
         else if (UNESCAPING == state) {
@@ -565,18 +564,16 @@ second_iter:
     case UNESCAPING:
         if (!utf8_validate(out_start, d)) goto _err;
 
-        *output_p = out_start;
-        *output_len_p = d - out_start;
-        return 1;
+        *p_dest = out_start;
+        return d - out_start;
     case ALLOCATING:
-        out_start = calloc(1, input_len);
+        out_start = calloc(1, size);
         d = out_start;
         state = UNESCAPING;
         goto second_iter;
     case TESTING:
-        *output_p = input_start;
-        *output_len_p = input_len;
-        return 1;
+        *p_dest = src_start;
+        return size;
     default:
         break;
     }
