@@ -2,13 +2,18 @@ JSMN-FIND
 =========
 
 jsmn-find is an add-on for the popular minimalistic JSON parser 
-[jsmn](https://github.com/zserge/jsmn).
+[jsmn](https://github.com/zserge/jsmn), it strives to keep a familiar and
+zero-allocation design.
 
 Dependencies
 ------------
 
 * [jsmn](https://github.com/zserge/jsmn) - Minimalistic JSON parser
-* [uthash](https://github.com/troydhanson/uthash) - Macro-based hashtable
+
+Included Dependencies
+---------------------
+
+* chash - Open-addressing hashtable made by [antropez](https://github.com/antropez)
 
 Design
 ------
@@ -19,7 +24,8 @@ searched for.
 Usage
 -----
 
-Download `jsmn-find.h` and the [dependencies](#dependencies) should be visible to your linker search path:
+Download `jsmn-find.h` and the [dependencies](#dependencies) should be visible 
+to your linker search path:
 
 ```c
 #include "jsmn.h"
