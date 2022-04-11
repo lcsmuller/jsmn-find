@@ -7,7 +7,7 @@
 #include <sys/wait.h>
 
 #define JSMN_STRICT
-#include "jsmn.h"
+#include "jsmn_1.1.0.h"
 #include "jsmn-find.h"
 #include "greatest.h"
 
