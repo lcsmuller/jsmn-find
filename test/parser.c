@@ -72,13 +72,21 @@ check_parser(struct context *cxt)
     }
 
     if (0 == pid) { /* child process */
-        jsmnf *root = jsmnf_init();
+        jsmn_parser parser;
+        jsmntok_t toks[256];
+        jsmnf_loader loader;
+        jsmnf_pair pairs[256];
         int ret;
 
-        ret = jsmnf_start(root, cxt->str, cxt->len);
+        jsmn_init(&parser);
+        jsmnf_init(&loader);
 
-        jsmnf_cleanup(root);
+        ret = jsmn_parse(&parser, cxt->str, cxt->len, toks,
+                         sizeof(toks) / sizeof *toks);
+        if (ret < 0) _exit(EXIT_FAILURE);
 
+        ret = jsmnf_load(&loader, cxt->str, toks, parser.toknext, pairs,
+                         sizeof(pairs) / sizeof *pairs);
         _exit(ret >= 0 ? EXIT_SUCCESS : EXIT_FAILURE);
     }
 
