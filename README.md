@@ -84,12 +84,6 @@ API
 * `jsmnf_find_path()` - locate a `jsmnf_pair` by its full key path
 * `jsmnf_unescape()` - unescape a Unicode string
 
-More Documentation
-------------------
-
-Read jsmn documentation for additional information:
-[jsmn web page](http://zserge.com/jsmn.html)
-
 Other Info
 ----------
 
