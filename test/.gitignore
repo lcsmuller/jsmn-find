@@ -1,8 +1,9 @@
 # Ignore all
 *
 # But these
-test_parsing
-test_transform
+!jsmn_1.1.0.h
+!test_parsing
+!test_transform
 !greatest.h
 !.gitignore
 !*.c
