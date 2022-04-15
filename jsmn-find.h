@@ -9,192 +9,226 @@ extern "C" {
 #error "jsmn-find.h should be included after jsmn.h"
 #endif
 
-#include "uthash.h"
+#include "chash.h"
 
-/** @brief store key/value jsmn tokens in a hashtable */
-typedef struct jsmnf {
-    /** the key of the pair (null if root) */
-    jsmntok_t *key;
-    /** the value of the pair (null if unexistent) */
-    jsmntok_t *val;
-    /** the positional index of the pair */
-    int idx;
-    /** this structure fields */
-    struct jsmnf *child;
-    /** make this structure fields hashable */
-    UT_hash_handle hh;
-} jsmnf;
+struct _jsmnf_szbuf {
+    /** buffer's contents */
+    const char *contents;
+    /** buffer's length */
+    int length;
+};
+
+/** @brief JSON object */
+typedef struct jsmnf_pair {
+    /** amount of children currently filled in */
+    int length;
+    /** children threshold capacity */
+    int capacity;
+    /** this pair's children */
+    struct jsmnf_pair *buckets;
+
+    /** the key of the pair */
+    struct _jsmnf_szbuf key;
+    /** the value of the pair */
+    struct _jsmnf_szbuf value;
+    /** current state of this pair */
+    int state;
+
+    /** JSON type @see `jsmntype_t` at jsmn.h */
+    jsmntype_t type;
+} jsmnf_pair;
+
+/** @brief Bucket (@ref jsmnf_pair) loader, keeps track of pair array
+ *      position */
+typedef struct jsmnf_loader {
+    /** next pair to allocate */
+    unsigned int pairnext;
+} jsmnf_loader;
 
 /**
- * @brief Initialize a @ref jsmnf root
+ * @brief Initialize a @ref jsmnf_loader
  *
- * @return a @ref jsmnf root that should be cleanup up with
- *      jsmnf_cleanup()
+ * @param loader jsmnf_loader to be initialized
  */
-JSMN_API jsmnf *jsmnf_init(void);
+JSMN_API void jsmnf_init(jsmnf_loader *loader);
 
 /**
- * @brief Cleanup a @ref jsmnf handle
+ * @brief Populate the @ref jsmnf_pair pairs with jsmn tokens
  *
- * @param root the @ref jsmnf root initialized with jsmnf_init()
+ * @param loader the @ref jsmnf_loader initialized with jsmnf_init()
+ * @param js the raw JSON string
+ * @param tokens jsmn tokens initialized with jsmn_parse()
+ * @param num_tokens amount of tokens initialized with jsmn_parse()
+ * @param pairs jsmnf_pair pairs array
+ * @param num_pairs maximum amount of pairs provided
+ * @return a `enum jsmnerr` value for error or the number of tokens found
  */
-JSMN_API void jsmnf_cleanup(jsmnf *root);
+JSMN_API int jsmnf_load(jsmnf_loader *loader,
+                        const char js[],
+                        const jsmntok_t tokens[],
+                        const unsigned int num_tokens,
+                        jsmnf_pair pairs[],
+                        const unsigned int num_pairs);
 
 /**
- * @brief Populate the @ref jsmnf root with jsmn tokens
+ * @brief Find a @ref jsmnf_pair token by its associated key
  *
- * @param root the @ref jsmnf structure initialized with jsmnf_init()
- * @param json the raw JSON string
- * @param size the raw JSON length
- * @return a negative number for error, or the number of tokens found
- */
-JSMN_API int jsmnf_start(jsmnf *root, const char json[], size_t size);
-
-/**
- * @brief Find a value `jsmntok_t` by its key
- *
- * @param root the @ref jsmnf structure initialized with jsmnf_init()
+ * @param head a @ref jsmnf_pair object or array loaded at jsmnf_start()
  * @param key the key too be matched
- * @param size size of the key too be matched
- * @return the key/value pair matched to `key`
+ * @param length length of the key too be matched
+ * @return the @ref jsmnf_pair `head`'s field matched to `key`, or NULL if
+ * not encountered
  */
-JSMN_API jsmnf *jsmnf_find(jsmnf *root, const char key[], size_t size);
+JSMN_API jsmnf_pair *jsmnf_find(jsmnf_pair *head,
+                                const char key[],
+                                int length);
 
 /**
- * @brief Find a value `jsmntok_t` by its key path
+ * @brief Find a @ref jsmnf_pair token by its full key path
  *
- * @param root the @ref jsmnf structure initialized with jsmnf_init()
+ * @param head a @ref jsmnf_pair object or array loaded at jsmnf_start()
  * @param path an array of key path strings, from least to highest depth
  * @param depth the depth level of the last `path` key
- * @return the key/value pair matched to `path`
+ * @return the @ref jsmnf_pair `head`'s field matched to `path`, or NULL if
+ * not encountered
  */
-JSMN_API jsmnf *jsmnf_find_path(jsmnf *root, char *const path[], int depth);
-
+JSMN_API jsmnf_pair *jsmnf_find_path(jsmnf_pair *head,
+                                     char *const path[],
+                                     int depth);
 /**
  * @brief Utility function for unescaping a Unicode string
  *
  * @param p_dest destination buffer
  * @param src source string to be unescaped
- * @param size source string size
- * @return size of unescaped string if succesfull, 0 otherwise
+ * @param length source string length
+ * @return length of unescaped string if successful, 0 otherwise
  */
-JSMN_API size_t jsmnf_unescape(char **p_dest, const char src[], size_t size);
+JSMN_API size_t jsmnf_unescape(char **p_dest, const char src[], size_t length);
 
 #ifndef JSMN_HEADER
-#include <stdio.h>
-#include <stdlib.h>
-#include <ctype.h>
 
-struct _jsmnroot {
-    /**
-     * the root jsmnf
-     * @note `root` must be the first element so that `struct _jsmnroot` can be
-     *      safely cast to `struct jsmnf` */
-    jsmnf root;
-    /** tokens storage cap */
-    size_t real_ntoks;
-    /** amount of tokens currently stored */
-    size_t ntoks;
-};
+#define _jsmnf_key_hash(key, hash)                                            \
+    5031;                                                                     \
+    do {                                                                      \
+        int __CHASH_HINDEX;                                                   \
+        for (__CHASH_HINDEX = 0; __CHASH_HINDEX < (key).length;               \
+             ++__CHASH_HINDEX) {                                              \
+            (hash) =                                                          \
+                (((hash) << 1) + (hash)) + (key).contents[__CHASH_HINDEX];    \
+        }                                                                     \
+    } while (0)
 
-static jsmnf *
-_jsmnf_init(void)
+/* compare jsmnf keys */
+#define _jsmnf_key_compare(cmp_a, cmp_b)                                      \
+    (!strncmp((cmp_a).contents, (cmp_b).contents, (cmp_b).length))
+
+#define _JSMNF_TABLE_HEAP   0
+#define _JSMNF_TABLE_BUCKET struct jsmnf_pair
+#define _JSMNF_TABLE_FREE_KEY(key)
+#define _JSMNF_TABLE_HASH(key, hash) _jsmnf_key_hash(key, hash)
+#define _JSMNF_TABLE_FREE_VALUE(value)
+#define _JSMNF_TABLE_COMPARE(cmp_a, cmp_b) _jsmnf_key_compare(cmp_a, cmp_b)
+
+JSMN_API void
+jsmnf_init(jsmnf_loader *loader)
 {
-    return calloc(1, sizeof(jsmnf));
-}
-
-jsmnf *
-jsmnf_init(void)
-{
-    struct _jsmnroot *r = calloc(1, sizeof *r);
-    if (!r) return NULL;
-
-    r->real_ntoks = 128;
-    r->root.val = malloc(r->real_ntoks * sizeof *r->root.val);
-    if (!r->root.val) {
-        free(r);
-        return NULL;
-    }
-    return &r->root;
-}
-
-static void
-_jsmnf_cleanup(jsmnf *head)
-{
-    if (!head) return;
-
-    if (JSMN_OBJECT == head->val->type || JSMN_ARRAY == head->val->type) {
-        jsmnf *iter, *tmp;
-
-        HASH_ITER(hh, head->child, iter, tmp)
-        {
-            HASH_DEL(head->child, iter);
-            _jsmnf_cleanup(iter);
-            free(iter);
-        }
-    }
-}
-
-void
-jsmnf_cleanup(jsmnf *root)
-{
-    _jsmnf_cleanup(root);
-    free(root->val);
-    free(root);
+    loader->pairnext = 0;
 }
 
 static int
-_jsmnf_get_pairs(const char js[], jsmntok_t *tok, size_t ntoks, jsmnf *head)
+_jsmnf_get_pairs(struct jsmnf_loader *loader,
+                 struct jsmnf_pair *curr,
+                 const char js[],
+                 const struct jsmntok *tok,
+                 const unsigned int num_tokens,
+                 struct jsmnf_pair *pairs,
+                 const unsigned int num_pairs)
 {
     int offset = 0;
 
-    if (!ntoks) return 0;
+    if (!num_tokens) return 0;
 
     switch (tok->type) {
     case JSMN_OBJECT: {
-        jsmnf *curr;
+        int pairstart = loader->pairnext;
         int ret;
-        int i;
 
-        for (i = 0; i < tok->size; ++i) {
-            curr = _jsmnf_init();
-            curr->idx = i;
-            curr->key = tok + 1 + offset;
+        if (tok->size > (int)(num_pairs - pairstart)
+            || (loader->pairnext + 1 + (tok->size * 1.3))
+                   > (num_pairs - pairstart))
+        {
+            return JSMN_ERROR_NOMEM;
+        }
 
-            ret = _jsmnf_get_pairs(js, curr->key, ntoks - offset, curr);
-            if (ret < 0) return ret;
+        loader->pairnext += 1 + (tok->size * 1.3);
 
-            offset += ret;
+        (void)chash_init_stack(curr, pairs + pairstart,
+                               loader->pairnext - pairstart, _JSMNF_TABLE);
 
-            if (curr->key->size > 0) {
-                curr->val = tok + 1 + offset;
+        while (curr->length < tok->size) {
+            const struct jsmntok *_key = tok + 1 + offset;
+            struct jsmnf_pair *found = NULL;
+            struct _jsmnf_szbuf key, value = { 0 };
 
-                ret = _jsmnf_get_pairs(js, curr->val, ntoks - offset, curr);
+            key.contents = js + _key->start;
+            key.length = _key->end - _key->start;
+
+            /* skip Key token */
+            offset += 1;
+
+            /* key->length > 0 means we're dealing with an Object or Array */
+            if (_key->size > 0) {
+                const struct jsmntok *_value = tok + 1 + offset;
+
+                value.contents = js + _value->start;
+                value.length = _value->end - _value->start;
+
+                chash_assign(curr, key, value, _JSMNF_TABLE);
+                (void)chash_lookup_bucket(curr, key, found, _JSMNF_TABLE);
+
+                ret = _jsmnf_get_pairs(loader, found, js, _value,
+                                       num_tokens - offset, pairs, num_pairs);
                 if (ret < 0) return ret;
 
                 offset += ret;
             }
-
-            HASH_ADD_KEYPTR(hh, head->child, js + curr->key->start,
-                            curr->key->end - curr->key->start, curr);
+            else {
+                chash_assign(curr, key, value, _JSMNF_TABLE);
+                (void)chash_lookup_bucket(curr, key, found, _JSMNF_TABLE);
+            }
         }
     } break;
     case JSMN_ARRAY: {
-        jsmnf *curr;
+        int pairstart = loader->pairnext;
         int ret;
-        int i;
 
-        for (i = 0; i < tok->size; ++i) {
-            curr = _jsmnf_init();
-            curr->idx = i;
-            curr->val = tok + 1 + offset;
+        if (tok->size > (int)(num_pairs - pairstart)
+            || (loader->pairnext + 1 + (tok->size * 1.3))
+                   > (num_pairs - pairstart))
+            return JSMN_ERROR_NOMEM;
 
-            ret = _jsmnf_get_pairs(js, curr->val, ntoks - offset, curr);
+        loader->pairnext += 1 + (tok->size * 1.3);
+
+        (void)chash_init_stack(curr, pairs + pairstart,
+                               loader->pairnext - pairstart, NULL);
+
+        for (; curr->length < tok->size; ++curr->length) {
+            const struct jsmntok *_value = tok + 1 + offset;
+            struct jsmnf_pair *pair = curr->buckets + curr->length;
+            struct _jsmnf_szbuf value;
+
+            value.contents = js + _value->start;
+            value.length = _value->end - _value->end;
+
+            ret = _jsmnf_get_pairs(loader, pair, js, _value,
+                                   num_tokens - offset, pairs, num_pairs);
             if (ret < 0) return ret;
 
             offset += ret;
 
-            HASH_ADD_INT(head->child, idx, curr);
+            /* assign array element */
+            pair->value = value;
+            pair->state = CHASH_FILLED;
         }
     } break;
     case JSMN_STRING:
@@ -206,73 +240,57 @@ _jsmnf_get_pairs(const char js[], jsmntok_t *tok, size_t ntoks, jsmnf *head)
                 js + tok->start);
         return -1;
     }
+
+    curr->type = tok->type;
+
     return offset + 1;
 }
 
-int
-jsmnf_start(jsmnf *root, const char js[], size_t size)
+JSMN_API int
+jsmnf_load(struct jsmnf_loader *loader,
+           const char js[],
+           const struct jsmntok tokens[],
+           const unsigned int num_tokens,
+           struct jsmnf_pair pairs[],
+           const unsigned int num_pairs)
 {
-    struct _jsmnroot *r = (struct _jsmnroot *)root;
-    jsmn_parser parser;
-    int ret;
-
-    /* Prepare parser */
-    jsmn_init(&parser);
-    while (1) {
-        ret = jsmn_parse(&parser, js, size, root->val, r->real_ntoks);
-
-        if (ret >= 0) {
-            r->ntoks = parser.toknext;
-            ret = _jsmnf_get_pairs(js, root->val, r->ntoks, root);
-            break;
-        }
-        else {
-            if (ret != JSMN_ERROR_NOMEM) {
-                break;
-            }
-            else {
-                size_t new_ntoks = r->real_ntoks * 2;
-                void *tmp;
-
-                tmp = realloc(root->val, new_ntoks * sizeof *root->val);
-                if (!tmp) return JSMN_ERROR_NOMEM;
-
-                r->real_ntoks = new_ntoks;
-                root->val = tmp;
-            }
-        }
-    }
-    return ret;
+    pairs->value.contents = js + tokens->start;
+    pairs->value.length = tokens->end - tokens->start;
+    return _jsmnf_get_pairs(loader, pairs, js, tokens, num_tokens, pairs,
+                            num_pairs);
 }
 
-jsmnf *
-jsmnf_find(jsmnf *head, const char key[], size_t size)
+JSMN_API struct jsmnf_pair *
+jsmnf_find(struct jsmnf_pair *head, const char key[], int length)
 {
-    jsmnf *found = NULL;
+    struct jsmnf_pair *found = NULL;
 
     if (!key || !head) return NULL;
 
-    if (JSMN_OBJECT == head->val->type) {
-        HASH_FIND(hh, head->child, key, size, found);
+    if (JSMN_OBJECT == head->type) {
+        struct _jsmnf_szbuf _key;
+        int contains;
+        _key.contents = key;
+        _key.length = length;
+        contains = chash_contains(head, _key, contains, _JSMNF_TABLE);
+        if (contains) {
+            (void)chash_lookup_bucket(head, _key, found, _JSMNF_TABLE);
+        }
     }
-    else if (JSMN_ARRAY == head->val->type) {
+    else if (JSMN_ARRAY == head->type) {
         char *endptr;
         int idx = (int)strtol(key, &endptr, 10);
-
-        if (endptr == key) return NULL;
-
-        HASH_FIND_INT(head->child, &idx, found);
+        if (endptr != key) found = head->buckets + idx;
     }
     return found;
 }
 
-jsmnf *
-jsmnf_find_path(jsmnf *head, char *const path[], int depth)
+JSMN_API struct jsmnf_pair *
+jsmnf_find_path(struct jsmnf_pair *head, char *const path[], int depth)
 {
-    jsmnf *iter = head, *found = NULL;
-    int i;
-
-    for (i = 0; i < depth; ++i) {
+    struct jsmnf_pair *iter = head, *found = NULL;
+    int i = 0;
+    for (; i < depth; ++i) {
         if (!iter) continue;
         found = jsmnf_find(iter, path[i], strlen(path[i]));
         if (!found) break;
@@ -282,9 +300,9 @@ jsmnf_find_path(jsmnf *head, char *const path[], int depth)
 }
 
 static int
-read_4_digits(char **str_p, const char *src_end, unsigned *x)
+_jsmnf_read_4_digits(char **p_str, const char *src_end, unsigned *x)
 {
-    char *str = *str_p;
+    char *str = *p_str;
     char buf[5] = { 0 };
     unsigned v;
     int i;
@@ -292,36 +310,38 @@ read_4_digits(char **str_p, const char *src_end, unsigned *x)
     if (src_end - str < 4) return 0;
 
     for (i = 0; i < 4; i++) {
-        char c = str[i];
-
-        buf[i] = c;
-        if (isxdigit(c)) continue;
-
+        buf[i] = str[i];
+        if (('0' <= str[i] && str[i] <= '9')
+            || ('A' <= str[i] && str[i] <= 'F')
+            || ('a' <= str[i] && str[i] <= 'f'))
+        {
+            continue;
+        }
         return 0;
     }
 
     sscanf(buf, "%x", &v);
 
     *x = v;
-    *str_p = str + 4;
+    *p_str = str + 4;
 
     return 1;
 }
 
-#define UTF16_IS_FIRST_SURROGATE(c)                                           \
+#define _JSMNF_UTF16_IS_FIRST_SURROGATE(c)                                    \
     (0xD800 <= (unsigned)c && (unsigned)c <= 0xDBFF)
-#define UTF16_IS_SECOND_SURROGATE(c)                                          \
+#define _JSMNF_UTF16_IS_SECOND_SURROGATE(c)                                   \
     (0xDC00 <= (unsigned)c && (unsigned)c <= 0xDFFF)
-#define UTF16_JOIN_SURROGATE(c1, c2)                                          \
+#define _JSMNF_UTF16_JOIN_SURROGATE(c1, c2)                                   \
     (((((unsigned long)c1 & 0x3FF) << 10) | ((unsigned)c2 & 0x3FF)) + 0x10000)
-#define UTF8_IS_VALID(c)                                                      \
+#define _JSMNF_UTF8_IS_VALID(c)                                               \
     (((unsigned long)c <= 0x10FFFF)                                           \
      && ((unsigned long)c < 0xD800 || (unsigned long)c > 0xDFFF))
-#define UTF8_IS_TRAIL(c) (((unsigned char)c & 0xC0) == 0x80)
-#define UTF_ILLEGAL      0xFFFFFFFFu
+#define _JSMNF_UTF8_IS_TRAIL(c) (((unsigned char)c & 0xC0) == 0x80)
+#define _JSMNF_UTF_ILLEGAL      0xFFFFFFFFu
 
 static int
-utf8_trail_length(unsigned char c)
+_jsmnf_utf8_trail_length(unsigned char c)
 {
     if (c < 128) return 0;
     if (c < 194) return -1;
@@ -332,43 +352,39 @@ utf8_trail_length(unsigned char c)
 }
 
 static int
-utf8_width(unsigned long value)
+_jsmnf_utf8_width(unsigned long value)
 {
-    if (value <= 0x7F)
-        return 1;
-    else if (value <= 0x7FF)
-        return 2;
-    else if (value <= 0xFFFF)
-        return 3;
-    else
-        return 4;
+    if (value <= 0x7F) return 1;
+    if (value <= 0x7FF) return 2;
+    if (value <= 0xFFFF) return 3;
+    return 4;
 }
 
 /* See RFC 3629
    Based on: http://www.w3.org/International/questions/qa-forms-utf-8 */
 static unsigned long
-utf8_next(char **p, char *e, int html)
+_jsmnf_utf8_next(char **p, char *e, int html)
 {
     unsigned char lead, tmp;
     int trail_size;
     unsigned long c;
 
-    if (*p == e) return UTF_ILLEGAL;
+    if (*p == e) return _JSMNF_UTF_ILLEGAL;
 
     lead = **p;
     (*p)++;
 
     /* First byte is fully validated here */
-    trail_size = utf8_trail_length(lead);
+    trail_size = _jsmnf_utf8_trail_length(lead);
 
-    if (trail_size < 0) return UTF_ILLEGAL;
+    if (trail_size < 0) return _JSMNF_UTF_ILLEGAL;
 
     /* Ok as only ASCII may be of size = 0 also optimize for ASCII text */
     if (trail_size == 0) {
         if (!html || (lead >= 0x20 && lead != 0x7F) || lead == 0x9
             || lead == 0x0A || lead == 0x0D)
             return lead;
-        return UTF_ILLEGAL;
+        return _JSMNF_UTF_ILLEGAL;
     }
 
     c = lead & ((1 << (6 - trail_size)) - 1);
@@ -376,47 +392,49 @@ utf8_next(char **p, char *e, int html)
     /* Read the rest */
     switch (trail_size) {
     case 3:
-        if (*p == e) return UTF_ILLEGAL;
+        if (*p == e) return _JSMNF_UTF_ILLEGAL;
         tmp = **p;
         (*p)++;
-        if (!UTF8_IS_TRAIL(tmp)) return UTF_ILLEGAL;
+        if (!_JSMNF_UTF8_IS_TRAIL(tmp)) return _JSMNF_UTF_ILLEGAL;
         c = (c << 6) | (tmp & 0x3F);
     /* fall-through */
     case 2:
-        if (*p == e) return UTF_ILLEGAL;
+        if (*p == e) return _JSMNF_UTF_ILLEGAL;
         tmp = **p;
         (*p)++;
-        if (!UTF8_IS_TRAIL(tmp)) return UTF_ILLEGAL;
+        if (!_JSMNF_UTF8_IS_TRAIL(tmp)) return _JSMNF_UTF_ILLEGAL;
         c = (c << 6) | (tmp & 0x3F);
     /* fall-through */
     case 1:
-        if (*p == e) return UTF_ILLEGAL;
+        if (*p == e) return _JSMNF_UTF_ILLEGAL;
         tmp = **p;
         (*p)++;
-        if (!UTF8_IS_TRAIL(tmp)) return UTF_ILLEGAL;
+        if (!_JSMNF_UTF8_IS_TRAIL(tmp)) return _JSMNF_UTF_ILLEGAL;
         c = (c << 6) | (tmp & 0x3F);
     }
 
     /* Check code point validity: no surrogates and valid range */
-    if (!UTF8_IS_VALID(c)) return UTF_ILLEGAL;
+    if (!_JSMNF_UTF8_IS_VALID(c)) return _JSMNF_UTF_ILLEGAL;
 
     /* make sure it is the most compact representation */
-    if (utf8_width(c) != trail_size + 1) return UTF_ILLEGAL;
+    if (_jsmnf_utf8_width(c) != trail_size + 1) return _JSMNF_UTF_ILLEGAL;
 
-    if (html && c < 0xA0) return UTF_ILLEGAL;
+    if (html && c < 0xA0) return _JSMNF_UTF_ILLEGAL;
     return c;
 }
 
 static int
-utf8_validate(char *p, char *e)
+_jsmnf_utf8_validate(char *p, char *e)
 {
     while (p != e)
-        if (utf8_next(&p, e, 0) == UTF_ILLEGAL) return 0;
+        if (_jsmnf_utf8_next(&p, e, 0) == _JSMNF_UTF_ILLEGAL) return 0;
     return 1;
 }
 
 static void
-utf8_encode(unsigned long value, char utf8_seq[4], unsigned *utf8_seqlen)
+_jsmnf_utf8_encode(unsigned long value,
+                   char utf8_seq[4],
+                   unsigned *utf8_seqlen)
 {
     /* struct utf8_seq out={0}; */
     if (value <= 0x7F) {
@@ -444,20 +462,20 @@ utf8_encode(unsigned long value, char utf8_seq[4], unsigned *utf8_seqlen)
 }
 
 static char *
-utf8_append(unsigned long x, char *d)
+_jsmnf_utf8_append(unsigned long x, char *d)
 {
     unsigned utf8_seqlen;
     char utf8_seq[4];
     unsigned i;
 
-    utf8_encode(x, utf8_seq, &utf8_seqlen);
+    _jsmnf_utf8_encode(x, utf8_seq, &utf8_seqlen);
 
     for (i = 0; i < utf8_seqlen; ++i)
         *d++ = utf8_seq[i];
     return d;
 }
 
-size_t
+JSMN_API size_t
 jsmnf_unescape(char **p_dest, const char src[], size_t size)
 {
     enum { TESTING = 1, ALLOCATING, UNESCAPING } state = TESTING;
@@ -493,32 +511,44 @@ second_iter:
             if (second_surrogate_expected && c != 'u') goto _err;
 
             switch (c) {
-            case '"': case '\\': case '/':
+            case '"':
+            case '\\':
+            case '/':
                 *d++ = c;
                 break;
-            case 'b': *d++ = '\b'; break;
-            case 'f': *d++ = '\f'; break;
-            case 'n': *d++ = '\n'; break;
-            case 'r': *d++ = '\r'; break;
-            case 't': *d++ = '\t'; break;
+            case 'b':
+                *d++ = '\b';
+                break;
+            case 'f':
+                *d++ = '\f';
+                break;
+            case 'n':
+                *d++ = '\n';
+                break;
+            case 'r':
+                *d++ = '\r';
+                break;
+            case 't':
+                *d++ = '\t';
+                break;
             case 'u': {
                 unsigned x;
 
-                if (!read_4_digits(&s, src_end, &x)) goto _err;
+                if (!_jsmnf_read_4_digits(&s, src_end, &x)) goto _err;
 
                 if (second_surrogate_expected) {
-                    if (!UTF16_IS_SECOND_SURROGATE(x)) goto _err;
+                    if (!_JSMNF_UTF16_IS_SECOND_SURROGATE(x)) goto _err;
 
-                    d = utf8_append(UTF16_JOIN_SURROGATE(first_surrogate, x),
-                                    d);
+                    d = _jsmnf_utf8_append(
+                        _JSMNF_UTF16_JOIN_SURROGATE(first_surrogate, x), d);
                     second_surrogate_expected = 0;
                 }
-                else if (UTF16_IS_FIRST_SURROGATE(x)) {
+                else if (_JSMNF_UTF16_IS_FIRST_SURROGATE(x)) {
                     second_surrogate_expected = 1;
                     first_surrogate = x;
                 }
                 else {
-                    d = utf8_append(x, d);
+                    d = _jsmnf_utf8_append(x, d);
                 }
             } break;
             default:
@@ -530,9 +560,11 @@ second_iter:
         }
     }
 
+    /** TODO: remove calloc() calls and return a JSMN_ERRO_NOMEM value
+     *      instead */
     switch (state) {
     case UNESCAPING:
-        if (!utf8_validate(out_start, d)) goto _err;
+        if (!_jsmnf_utf8_validate(out_start, d)) goto _err;
 
         *p_dest = out_start;
         return d - out_start;
