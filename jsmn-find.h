@@ -230,8 +230,8 @@ _jsmnf_get_pairs(struct jsmnf_loader *loader,
             pair->value = value;
             pair->state = CHASH_FILLED;
             /* unused for array elements */
-            pair->key.start = NULL;
-            pair->key.size = 0;
+            pair->key.contents = NULL;
+            pair->key.length = 0;
         }
     } break;
     case JSMN_STRING:
