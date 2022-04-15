@@ -234,8 +234,8 @@ do {                                                                        \
   namespace ## _BUCKET __CHASH_KEY_BUCKET;                                  \
   __CHASH_KEY_BUCKET.key = (_key);                                          \
                                                                             \
-  __chash_assert_nonnull(chash_assign, hashtable);                          \
-  __chash_assert_nonnull(chash_assign, (hashtable)->buckets);               \
+  __chash_assert_nonnull(chash_lookup, hashtable);                          \
+  __chash_assert_nonnull(chash_lookup, (hashtable)->buckets);               \
   __chash_hash((hashtable)->capacity, _key, namespace);                     \
   __chash_probe(hashtable, _key, namespace)                                 \
                                                                             \
@@ -254,8 +254,8 @@ do {                                                                        \
   int __CHASH_INDEX = 0;                                                    \
   long __CHASH_HASH = 0;                                                    \
                                                                             \
-  __chash_assert_nonnull(chash_assign, hashtable);                          \
-  __chash_assert_nonnull(chash_assign, (hashtable)->buckets);               \
+  __chash_assert_nonnull(chash_delete, hashtable);                          \
+  __chash_assert_nonnull(chash_delete, (hashtable)->buckets);               \
   __chash_hash((hashtable)->capacity, _key, namespace);                     \
   __chash_probe(hashtable, _key, namespace)                                 \
                                                                             \
@@ -279,8 +279,8 @@ do {                                                                     \
   int __CHASH_INDEX = 0;                                                 \
   long __CHASH_HASH = 0;                                                 \
                                                                          \
-  __chash_assert_nonnull(chash_assign, hashtable);                       \
-  __chash_assert_nonnull(chash_assign, (hashtable)->buckets);            \
+  __chash_assert_nonnull(chash_contents, hashtable);                     \
+  __chash_assert_nonnull(chash_contents, (hashtable)->buckets);          \
   __chash_hash((hashtable)->capacity, _key, namespace);                  \
   __chash_probe(hashtable, _key, namespace)                              \
                                                                          \
@@ -290,10 +290,34 @@ do {                                                                     \
   }                                                                      \
 } while(0)
 
+#define chash_lookup_bucket(hashtable, _key, storage, namespace)           \
+storage;                                                                   \
+                                                                           \
+do {                                                                       \
+  int __CHASH_INDEX = 0;                                                   \
+  long __CHASH_HASH = 0;                                                   \
+  namespace ## _BUCKET __CHASH_KEY_BUCKET;                                 \
+  __CHASH_KEY_BUCKET.key = (_key);                                         \
+                                                                           \
+  __chash_assert_nonnull(chash_lookup_bucket, hashtable);                  \
+  __chash_assert_nonnull(chash_lookup_bucket, (hashtable)->buckets);       \
+  __chash_hash((hashtable)->capacity, _key, namespace);                    \
+  __chash_probe(hashtable, _key, namespace)                                \
+                                                                           \
+  if(((hashtable)->buckets[__CHASH_HASH].state != CHASH_FILLED) ||         \
+                                                    __CHASH_INDEX != -1) { \
+    fprintf(stderr, "chash_lookup_bucket: failed to find key in hashtable" \
+                    "(%s:%i) \n", __FILE__, __LINE__);                     \
+    exit(EXIT_FAILURE);                                                    \
+  }                                                                        \
+                                                                           \
+  storage = ((hashtable)->buckets + __CHASH_HASH);                         \
+} while(0)
+
 #define chash_free(hashtable, namespace)                                    \
 do {                                                                        \
-  __chash_assert_nonnull(chash_assign, hashtable);                          \
-  __chash_assert_nonnull(chash_assign, (hashtable)->buckets);               \
+  __chash_assert_nonnull(chash_free, hashtable);                            \
+  __chash_assert_nonnull(chash_free, (hashtable)->buckets);                 \
   (hashtable)->capacity--;                                                  \
                                                                             \
   while((hashtable)->capacity != -1) {                                      \
@@ -316,7 +340,8 @@ do {                                                                        \
   }                                                                         \
 } while(0);
 
-
+#define chash_is_full(hashtable, namespace) \
+    (((hashtable)->length) == ((hashtable)->capacity))
 
 
 
