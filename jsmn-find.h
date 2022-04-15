@@ -9,8 +9,6 @@ extern "C" {
 #error "jsmn-find.h should be included after jsmn.h"
 #endif
 
-#include "chash.h"
-
 struct _jsmnf_szbuf {
     /** buffer's contents */
     const char *contents;
@@ -106,6 +104,8 @@ JSMN_API jsmnf_pair *jsmnf_find_path(jsmnf_pair *head,
 JSMN_API size_t jsmnf_unescape(char **p_dest, const char src[], size_t length);
 
 #ifndef JSMN_HEADER
+
+#include "chash.h"
 
 #define _jsmnf_key_hash(key, hash)                                            \
     5031;                                                                     \
