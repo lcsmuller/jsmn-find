@@ -18,8 +18,8 @@ Included Dependencies
 Design
 ------
 
-jsmn-find organizes jsmn's JSON tokens under a hashtable, so they can be
-searched for.
+jsmn-find organizes jsmn's JSON tokens under a hashtable, so that they can be
+searched for in linear time.
 
 Usage
 -----
