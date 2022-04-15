@@ -229,6 +229,9 @@ _jsmnf_get_pairs(struct jsmnf_loader *loader,
             /* assign array element */
             pair->value = value;
             pair->state = CHASH_FILLED;
+            /* unused for array elements */
+            pair->key.start = NULL;
+            pair->key.size = 0;
         }
     } break;
     case JSMN_STRING:
@@ -254,8 +257,10 @@ jsmnf_load(struct jsmnf_loader *loader,
            struct jsmnf_pair pairs[],
            const unsigned int num_pairs)
 {
-    pairs->value.contents = js + tokens->start;
-    pairs->value.length = tokens->end - tokens->start;
+    if (!loader->pairnext) {
+        pairs->value.contents = js + tokens->start;
+        pairs->value.length = tokens->end - tokens->start;
+    }
     return _jsmnf_get_pairs(loader, pairs, js, tokens, num_tokens, pairs,
                             num_pairs);
 }
