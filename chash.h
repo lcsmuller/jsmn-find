@@ -1,7 +1,7 @@
 #ifndef CWARE_LIBCHASH_H
 #define CWARE_LIBCHASH_H
 
-#define CWARE_LIBCHASH_VERSION  1.0.4
+#define CWARE_LIBCHASH_VERSION  1.0.5
 
 /* How big heap-allocated hashtables are by default */
 #ifndef CHASH_INITIAL_SIZE
@@ -19,6 +19,12 @@
 /* The threshold that, when passed, will cause a resize */
 #ifndef CHASH_LOAD_THRESHOLD
 #define CHASH_LOAD_THRESHOLD 0.8
+#endif
+
+/* The type that is used for counters; useful for aligning hashtable
+ * length and capacity fields so type casting warnings do now appear */
+#ifndef CHASH_COUNTER_TYPE
+#define CHASH_COUNTER_TYPE  int
 #endif
 
 /* State enums */
@@ -101,7 +107,7 @@
 
 #define __chash_resize(hashtable, namespace)                                \
 do {                                                                        \
-  size_t __CHASH_INDEX = 0;                                                 \
+  CHASH_COUNTER_TYPE __CHASH_INDEX = 0;                                     \
   namespace ## _BUCKET *__CHASH_BUCKETS = NULL;                             \
   int __CHASH_NEXT_SIZE = CHASH_RESIZE((hashtable)->capacity);              \
                                                                             \
@@ -234,6 +240,8 @@ do {                                                                        \
   namespace ## _BUCKET __CHASH_KEY_BUCKET;                                  \
   __CHASH_KEY_BUCKET.key = (_key);                                          \
                                                                             \
+  (void) __CHASH_KEY_BUCKET;                                                \
+                                                                            \
   __chash_assert_nonnull(chash_lookup, hashtable);                          \
   __chash_assert_nonnull(chash_lookup, (hashtable)->buckets);               \
   __chash_hash((hashtable)->capacity, _key, namespace);                     \
@@ -294,10 +302,12 @@ do {                                                                     \
 storage;                                                                   \
                                                                            \
 do {                                                                       \
-  int __CHASH_INDEX = 0;                                                   \
+  CHASH_COUNTER_TYPE __CHASH_INDEX = 0;                                    \
   long __CHASH_HASH = 0;                                                   \
   namespace ## _BUCKET __CHASH_KEY_BUCKET;                                 \
   __CHASH_KEY_BUCKET.key = (_key);                                         \
+                                                                           \
+  (void) __CHASH_KEY_BUCKET;                                               \
                                                                            \
   __chash_assert_nonnull(chash_lookup_bucket, hashtable);                  \
   __chash_assert_nonnull(chash_lookup_bucket, (hashtable)->buckets);       \
