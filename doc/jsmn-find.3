@@ -1,0 +1,145 @@
+.TH JSMN-FIND 3 "April 15th, 2022" "" "jsmn-find Manual"
+
+.SH SYNOPSIS
+.B #include \[dq]jsmn-find.h\[dq]
+
+.br
+.BI "void jsmnf_init(jsmnf_loader *" "loader" ");"
+.br
+.BI "int jsmnf_load(jsmnf_loader *" "loader" ", const char " "js" "[], \
+jsmntok_t " "tokens" "[], "
+.br
+.BI "                unsigned int " "num_tokens" ", jsmnf_pair " \
+"pairs" "[], unsigned int " "num_pairs" ");"
+.br
+.BI "jsmnf_pair *jsmf_find(jsmf_pair *" "head" ", char *const " "key" \
+"[], int " "length" ");"
+.br
+.BI "jsmnf_pair *jsmf_find_path(jsmf_pair *" "head" ", char *const " "path" \
+"[], int " "depth" ");"
+.br
+.BI "size_t jsmnf_unescape(char **" "p_dest" ", const char " "src" "[], \
+size_t" "length" ");"
+
+.SH DESCRIPTION
+This library is an add-on for the popular minimalistic JSON parser jsmn, it
+strives to keep a familiar and zero-allocation design. The purpose is to
+provide an easy way to extract JSON fields from a JSON string by storing the
+path of each field in a hashtable, with its path being used as the key.
+
+When using this library, make sure to include JSMN
+.I before
+including this. Otherwise, jsmn-find will produce a compile-time error. Because
+of this, and with jsmn-find being a single header, it uses static functions to
+prevent redefining linker symbols. If you would like to avoid this, you can
+define the
+.B JSMN_HEADER
+macro
+.I before
+including jsmn-find. This will
+.I only
+include declarations qualified with
+.BR extern .
+If you choose this route, create a C source file that will hold the full
+function bodies that are included in the header. For example:
+
+.RS
+.B /* In every .c file that uses jsmn include only declarations: */
+.br
+.B #define JSMN_HEADER
+.br
+.B #include \[dq]jsmn.h\[dq]
+.br
+.B #include \[dq]jsmn-find.h\[dq]
+.br
+
+.B /* Additionally, create one jsmn-find.c file for jsmn-find implementation: \
+*/
+.br
+.B #include \[dq]jsmn.h\[dq]
+.br
+.B #include \[dq]jsmn-find.h\[dq]
+.br
+.RE
+
+What follows is a table of each public function that the programmer should use
+in their application.
+.TS
+tab(;);
+lb l
+_ _
+lb l
+.
+Function;Description
+jsmnf_init();Initialize a jsmf_loader.
+jsmnf_load();Populate jsmnf_pair array with JSMN tokens
+jsmnf_find();Locate a jsmnf_pair by its associated key
+jsmnf_find_path();Locate a jsmnf_pair by its full key path
+jsmnf_unescape();Unescape a Unicode string
+.TE
+
+.SH EXAMPLES
+#include \[dq]jsmn.h\[dq]
+.br
+#include \[dq]jsmn-find.h\[dq]
+.br
+
+int main(void) {
+.br
+.BR "" "    ..."
+.br
+    // parse jsmn tokens first
+.br
+    jsmn_parser parser;
+.br
+    jsmntok_t tokens[256];
+.br
+
+    jsmn_init(&parser);
+.br
+
+    r = jsmn_parse(&parser, json, strlen(json), tokens, 256);
+.br
+    if (r <= 0) error();
+.br
+
+    // populate jsmnf_pairs with the jsmn tokens
+.br
+    jsmnf_loader loader;
+.br
+    jsmnf_pairs pairs[256];
+.br
+
+    jsmnf_init(&loader);
+.br
+
+    r = jsmnf_load(&loader, json, tokens, parser.toknext, pairs, 256);
+.br
+    if (r <= 0) error();
+.br
+
+    // assume the JSON : { "foo": { "bar": [ 1, 2, 3 ] } }
+.br
+    jsmnf_pair *f = jsmnf_find(pairs, "foo", strlen("foo"));
+.br
+    // Found: { "bar" : [ 1, 2, 3 ] }
+.br
+    printf("Found: %.*s\n", f->value.length, f->value.contents);
+.br
+
+.BR "" "    ..."
+
+.br
+    // assume the JSON : [ 1, 2, [ 1, [ { "b":true } ] ] ]
+.br
+    char *path[] = { "2", "1", "0", "b" };
+.br
+    jsmnf_pair *f = jsmnf_find_path(pairs, path, sizeof(path) / sizeof(char *));
+.br
+
+    // Found: true
+.br
+    printf("Found: %.*s\n", f->value.length, f->value.contents);
+.br
+}
+.br
