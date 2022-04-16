@@ -1,4 +1,4 @@
-.TH JSMN-FIND 3 "April 15th, 2022" "" "jsmn-find Manual"
+.TH JSMN-FIND 3 "April 16th, 2022" "" "jsmn-find Manual"
 
 .SH SYNOPSIS
 .B #include \[dq]jsmn-find.h\[dq]
@@ -9,17 +9,17 @@
 .BI "int jsmnf_load(jsmnf_loader *" "loader" ", const char " "js" "[], \
 jsmntok_t " "tokens" "[], "
 .br
-.BI "                unsigned int " "num_tokens" ", jsmnf_pair " \
-"pairs" "[], unsigned int " "num_pairs" ");"
+.BI "                unsigned " "num_tokens" ", jsmnf_pair " \
+"pairs" "[], unsigned " "num_pairs" ");"
 .br
-.BI "jsmnf_pair *jsmf_find(jsmf_pair *" "head" ", char *const " "key" \
+.BI "jsmnf_pair *jsmnf_find(jsmnf_pair *" "head" ", const char " "key" \
 "[], int " "length" ");"
 .br
-.BI "jsmnf_pair *jsmf_find_path(jsmf_pair *" "head" ", char *const " "path" \
+.BI "jsmnf_pair *jsmnf_find_path(jsmnf_pair *" "head" ", char *const " "path" \
 "[], int " "depth" ");"
 .br
-.BI "size_t jsmnf_unescape(char **" "p_dest" ", const char " "src" "[], \
-size_t" "length" ");"
+.BI "long jsmnf_unescape(char " "buf" "[], size_t " "bufsize" ", const char " \
+"src" "[], size_t " "length" ");"
 
 .SH DESCRIPTION
 This library is an add-on for the popular minimalistic JSON parser jsmn, it
@@ -71,7 +71,7 @@ _ _
 lb l
 .
 Function;Description
-jsmnf_init();Initialize a jsmf_loader.
+jsmnf_init();Initialize a jsmnf_loader.
 jsmnf_load();Populate jsmnf_pair array with JSMN tokens
 jsmnf_find();Locate a jsmnf_pair by its associated key
 jsmnf_find_path();Locate a jsmnf_pair by its full key path
