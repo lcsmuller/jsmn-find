@@ -41,7 +41,7 @@ typedef struct jsmnf_pair {
  *      position */
 typedef struct jsmnf_loader {
     /** next pair to allocate */
-    unsigned int pairnext;
+    unsigned pairnext;
 } jsmnf_loader;
 
 /**
@@ -65,9 +65,9 @@ JSMN_API void jsmnf_init(jsmnf_loader *loader);
 JSMN_API int jsmnf_load(jsmnf_loader *loader,
                         const char js[],
                         const jsmntok_t tokens[],
-                        unsigned int num_tokens,
+                        unsigned num_tokens,
                         jsmnf_pair pairs[],
-                        unsigned int num_pairs);
+                        unsigned num_pairs);
 
 /**
  * @brief Find a @ref jsmnf_pair token by its associated key
@@ -97,12 +97,17 @@ JSMN_API jsmnf_pair *jsmnf_find_path(jsmnf_pair *head,
 /**
  * @brief Utility function for unescaping a Unicode string
  *
- * @param p_dest destination buffer
+ * @param buf destination buffer
+ * @param bufsize destination buffer size
  * @param src source string to be unescaped
  * @param length source string length
- * @return length of unescaped string if successful, 0 otherwise
+ * @return length of unescaped string if successful or a negative jsmn error
+ *      code on failure
  */
-JSMN_API size_t jsmnf_unescape(char **p_dest, const char src[], size_t length);
+JSMN_API long jsmnf_unescape(char buf[],
+                             size_t bufsize,
+                             const char src[],
+                             size_t length);
 
 #ifndef JSMN_HEADER
 
@@ -141,9 +146,9 @@ _jsmnf_get_pairs(struct jsmnf_loader *loader,
                  struct jsmnf_pair *curr,
                  const char js[],
                  const struct jsmntok *tok,
-                 unsigned int num_tokens,
+                 unsigned num_tokens,
                  struct jsmnf_pair *pairs,
-                 unsigned int num_pairs)
+                 unsigned num_pairs)
 {
     int offset = 0;
 
@@ -254,14 +259,21 @@ JSMN_API int
 jsmnf_load(struct jsmnf_loader *loader,
            const char js[],
            const struct jsmntok tokens[],
-           unsigned int num_tokens,
+           unsigned num_tokens,
            struct jsmnf_pair pairs[],
-           unsigned int num_pairs)
+           unsigned num_pairs)
 {
-    if (!loader->pairnext) {
-        pairs->value.contents = js + tokens->start;
-        pairs->value.length = tokens->end - tokens->start;
+    if (!loader->pairnext) { /* first run, initialize pairs */
+        static const struct jsmnf_pair blank_pair = { 0 };
+        unsigned i = 1;
+
+        for (; i < num_pairs; ++i)
+            pairs[i] = blank_pair;
+
+        pairs[0].value.contents = js + tokens->start;
+        pairs[0].value.length = tokens->end - tokens->start;
     }
+
     return _jsmnf_get_pairs(loader, pairs, js, tokens, num_tokens, pairs,
                             num_pairs);
 }
@@ -306,32 +318,26 @@ jsmnf_find_path(struct jsmnf_pair *head, char *const path[], int depth)
 }
 
 static int
-_jsmnf_read_4_digits(char **p_str, const char *src_end, unsigned *x)
+_jsmnf_read_4_digits(char *s, const char *end, unsigned *p_hex)
 {
-    char *str = *p_str;
     char buf[5] = { 0 };
-    unsigned v;
     int i;
 
-    if (src_end - str < 4) return 0;
+    if (end - s < 4) return JSMN_ERROR_PART;
 
     for (i = 0; i < 4; i++) {
-        buf[i] = str[i];
-        if (('0' <= str[i] && str[i] <= '9')
-            || ('A' <= str[i] && str[i] <= 'F')
-            || ('a' <= str[i] && str[i] <= 'f'))
+        buf[i] = s[i];
+        if (('0' <= s[i] && s[i] <= '9') || ('A' <= s[i] && s[i] <= 'F')
+            || ('a' <= s[i] && s[i] <= 'f'))
         {
             continue;
         }
-        return 0;
+        return JSMN_ERROR_INVAL;
     }
 
-    sscanf(buf, "%x", &v);
+    *p_hex = (unsigned)strtoul(buf, NULL, 16);
 
-    *x = v;
-    *p_str = str + 4;
-
-    return 1;
+    return 4;
 }
 
 #define _JSMNF_UTF16_IS_FIRST_SURROGATE(c)                                    \
@@ -369,13 +375,13 @@ _jsmnf_utf8_width(unsigned long value)
 /* See RFC 3629
    Based on: http://www.w3.org/International/questions/qa-forms-utf-8 */
 static unsigned long
-_jsmnf_utf8_next(char **p, char *e, int html)
+_jsmnf_utf8_next(char **p, const char *end)
 {
     unsigned char lead, tmp;
     int trail_size;
     unsigned long c;
 
-    if (*p == e) return _JSMNF_UTF_ILLEGAL;
+    if (*p == end) return _JSMNF_UTF_ILLEGAL;
 
     lead = **p;
     (*p)++;
@@ -386,33 +392,28 @@ _jsmnf_utf8_next(char **p, char *e, int html)
     if (trail_size < 0) return _JSMNF_UTF_ILLEGAL;
 
     /* Ok as only ASCII may be of size = 0 also optimize for ASCII text */
-    if (trail_size == 0) {
-        if (!html || (lead >= 0x20 && lead != 0x7F) || lead == 0x9
-            || lead == 0x0A || lead == 0x0D)
-            return lead;
-        return _JSMNF_UTF_ILLEGAL;
-    }
+    if (trail_size == 0) return lead;
 
     c = lead & ((1 << (6 - trail_size)) - 1);
 
     /* Read the rest */
     switch (trail_size) {
     case 3:
-        if (*p == e) return _JSMNF_UTF_ILLEGAL;
+        if (*p == end) return _JSMNF_UTF_ILLEGAL;
         tmp = **p;
         (*p)++;
         if (!_JSMNF_UTF8_IS_TRAIL(tmp)) return _JSMNF_UTF_ILLEGAL;
         c = (c << 6) | (tmp & 0x3F);
     /* fall-through */
     case 2:
-        if (*p == e) return _JSMNF_UTF_ILLEGAL;
+        if (*p == end) return _JSMNF_UTF_ILLEGAL;
         tmp = **p;
         (*p)++;
         if (!_JSMNF_UTF8_IS_TRAIL(tmp)) return _JSMNF_UTF_ILLEGAL;
         c = (c << 6) | (tmp & 0x3F);
     /* fall-through */
     case 1:
-        if (*p == e) return _JSMNF_UTF_ILLEGAL;
+        if (*p == end) return _JSMNF_UTF_ILLEGAL;
         tmp = **p;
         (*p)++;
         if (!_JSMNF_UTF8_IS_TRAIL(tmp)) return _JSMNF_UTF_ILLEGAL;
@@ -425,172 +426,140 @@ _jsmnf_utf8_next(char **p, char *e, int html)
     /* make sure it is the most compact representation */
     if (_jsmnf_utf8_width(c) != trail_size + 1) return _JSMNF_UTF_ILLEGAL;
 
-    if (html && c < 0xA0) return _JSMNF_UTF_ILLEGAL;
     return c;
 }
 
-static int
-_jsmnf_utf8_validate(char *p, char *e)
+static long
+_jsmnf_utf8_validate(char *p, const char *end)
 {
-    while (p != e)
-        if (_jsmnf_utf8_next(&p, e, 0) == _JSMNF_UTF_ILLEGAL) return 0;
-    return 1;
+    const char *start = p;
+    while (p != end) {
+        if (_jsmnf_utf8_next(&p, end) == _JSMNF_UTF_ILLEGAL)
+            return JSMN_ERROR_INVAL;
+    }
+    return (long)(end - start);
 }
 
-static void
-_jsmnf_utf8_encode(unsigned long value,
-                   char utf8_seq[4],
-                   unsigned *utf8_seqlen)
+static unsigned
+_jsmnf_utf8_encode(unsigned long value, char utf8_seq[4])
 {
-    /* struct utf8_seq out={0}; */
     if (value <= 0x7F) {
         utf8_seq[0] = value;
-        *utf8_seqlen = 1;
+        return 1;
     }
-    else if (value <= 0x7FF) {
+    if (value <= 0x7FF) {
         utf8_seq[0] = (value >> 6) | 0xC0;
         utf8_seq[1] = (value & 0x3F) | 0x80;
-        *utf8_seqlen = 2;
+        return 2;
     }
-    else if (value <= 0xFFFF) {
+    if (value <= 0xFFFF) {
         utf8_seq[0] = (value >> 12) | 0xE0;
         utf8_seq[1] = ((value >> 6) & 0x3F) | 0x80;
         utf8_seq[2] = (value & 0x3F) | 0x80;
-        *utf8_seqlen = 3;
+        return 3;
     }
-    else {
-        utf8_seq[0] = (value >> 18) | 0xF0;
-        utf8_seq[1] = ((value >> 12) & 0x3F) | 0x80;
-        utf8_seq[2] = ((value >> 6) & 0x3F) | 0x80;
-        utf8_seq[3] = (value & 0x3F) | 0x80;
-        *utf8_seqlen = 4;
-    }
+    utf8_seq[0] = (value >> 18) | 0xF0;
+    utf8_seq[1] = ((value >> 12) & 0x3F) | 0x80;
+    utf8_seq[2] = ((value >> 6) & 0x3F) | 0x80;
+    utf8_seq[3] = (value & 0x3F) | 0x80;
+    return 4;
 }
 
-static char *
-_jsmnf_utf8_append(unsigned long x, char *d)
+static unsigned
+_jsmnf_utf8_append(unsigned long hex, char *unesc_tok)
 {
-    unsigned utf8_seqlen;
     char utf8_seq[4];
+    unsigned utf8_seqlen = _jsmnf_utf8_encode(hex, utf8_seq);
     unsigned i;
-
-    _jsmnf_utf8_encode(x, utf8_seq, &utf8_seqlen);
-
     for (i = 0; i < utf8_seqlen; ++i)
-        *d++ = utf8_seq[i];
-    return d;
+        unesc_tok[i] = utf8_seq[i];
+    return utf8_seqlen;
 }
 
-JSMN_API size_t
-jsmnf_unescape(char **p_dest, const char src[], size_t size)
+#define CHAR_PUSH(start, curr, c, bufsize)                                    \
+    do {                                                                      \
+        if ((size_t)(curr - start + 1) >= bufsize) return JSMN_ERROR_NOMEM;   \
+        *curr++ = c;                                                          \
+    } while (0)
+
+JSMN_API long
+jsmnf_unescape(char buf[], size_t bufsize, const char src[], size_t len)
 {
-    enum { TESTING = 1, ALLOCATING, UNESCAPING } state = TESTING;
+    char *s = (char *)src, *end = (char *)src + len;
+    char *unesc_tok = buf;
+    int second_surrogate_expected = 0;
+    unsigned first_surrogate = 0;
 
-    char *src_start = (char *)src, *src_end = (char *)src + size;
-    char *out_start = NULL, *d = NULL, *s = NULL;
-    unsigned first_surrogate;
-    int second_surrogate_expected;
-    char c;
+    while (*s && s < end) {
+        char c = *s++;
 
-second_iter:
-    first_surrogate = 0;
-    second_surrogate_expected = 0;
+        if (0 <= c && c <= 0x1F) return JSMN_ERROR_INVAL;
 
-    for (s = src_start; s < src_end;) {
+        if (c != '\\') {
+            if (second_surrogate_expected) return JSMN_ERROR_INVAL;
+            CHAR_PUSH(buf, unesc_tok, c, bufsize);
+            continue;
+        }
+
+        /* expects escaping but src is a well-formed string */
+        if (!*s || s == end) return JSMN_ERROR_PART;
+
         c = *s++;
 
-        if (second_surrogate_expected && c != '\\') goto _err;
-        if (0 <= c && c <= 0x1F) goto _err;
+        if (second_surrogate_expected && c != 'u') return JSMN_ERROR_INVAL;
 
-        if ('\\' == c) {
-            /* break the while loop */
-            if (TESTING == state) {
-                state = ALLOCATING;
-                break;
+        switch (c) {
+        case '"':
+        case '\\':
+        case '/':
+            CHAR_PUSH(buf, unesc_tok, c, bufsize);
+            break;
+        case 'b':
+            CHAR_PUSH(buf, unesc_tok, '\b', bufsize);
+            break;
+        case 'f':
+            CHAR_PUSH(buf, unesc_tok, '\f', bufsize);
+            break;
+        case 'n':
+            CHAR_PUSH(buf, unesc_tok, '\n', bufsize);
+            break;
+        case 'r':
+            CHAR_PUSH(buf, unesc_tok, '\r', bufsize);
+            break;
+        case 't':
+            CHAR_PUSH(buf, unesc_tok, '\t', bufsize);
+            break;
+        case 'u': {
+            unsigned hex;
+            const int ret = _jsmnf_read_4_digits(s, end, &hex);
+
+            if (ret != 4) return ret;
+
+            s += ret;
+
+            if (second_surrogate_expected) {
+                if (!_JSMNF_UTF16_IS_SECOND_SURROGATE(hex))
+                    return JSMN_ERROR_INVAL;
+
+                unesc_tok += _jsmnf_utf8_append(
+                    _JSMNF_UTF16_JOIN_SURROGATE(first_surrogate, hex),
+                    unesc_tok);
+
+                second_surrogate_expected = 0;
             }
-
-            /* return if src is a well-formed json string */
-            if (s == src_end) goto _err;
-
-            c = *s++;
-
-            if (second_surrogate_expected && c != 'u') goto _err;
-
-            switch (c) {
-            case '"':
-            case '\\':
-            case '/':
-                *d++ = c;
-                break;
-            case 'b':
-                *d++ = '\b';
-                break;
-            case 'f':
-                *d++ = '\f';
-                break;
-            case 'n':
-                *d++ = '\n';
-                break;
-            case 'r':
-                *d++ = '\r';
-                break;
-            case 't':
-                *d++ = '\t';
-                break;
-            case 'u': {
-                unsigned x;
-
-                if (!_jsmnf_read_4_digits(&s, src_end, &x)) goto _err;
-
-                if (second_surrogate_expected) {
-                    if (!_JSMNF_UTF16_IS_SECOND_SURROGATE(x)) goto _err;
-
-                    d = _jsmnf_utf8_append(
-                        _JSMNF_UTF16_JOIN_SURROGATE(first_surrogate, x), d);
-                    second_surrogate_expected = 0;
-                }
-                else if (_JSMNF_UTF16_IS_FIRST_SURROGATE(x)) {
-                    second_surrogate_expected = 1;
-                    first_surrogate = x;
-                }
-                else {
-                    d = _jsmnf_utf8_append(x, d);
-                }
-            } break;
-            default:
-                goto _err;
+            else if (_JSMNF_UTF16_IS_FIRST_SURROGATE(hex)) {
+                second_surrogate_expected = 1;
+                first_surrogate = hex;
             }
-        }
-        else if (UNESCAPING == state) {
-            *d++ = c;
+            else {
+                unesc_tok += _jsmnf_utf8_append(hex, unesc_tok);
+            }
+        } break;
+        default:
+            return JSMN_ERROR_INVAL;
         }
     }
-
-    /** TODO: remove calloc() calls and return a JSMN_ERRO_NOMEM value
-     *      instead */
-    switch (state) {
-    case UNESCAPING:
-        if (!_jsmnf_utf8_validate(out_start, d)) goto _err;
-
-        *p_dest = out_start;
-        return d - out_start;
-    case ALLOCATING:
-        out_start = calloc(1, size);
-        d = out_start;
-        state = UNESCAPING;
-        goto second_iter;
-    case TESTING:
-        *p_dest = calloc(1, size + 1);
-        memcpy(*p_dest, src_start, size);
-        (*p_dest)[size] = '\0';
-        return size;
-    default:
-        break;
-    }
-
-_err:
-    if (UNESCAPING == state) free(out_start);
-    return 0;
+    return _jsmnf_utf8_validate(buf, unesc_tok);
 }
 #endif /* JSMN_HEADER */
 
