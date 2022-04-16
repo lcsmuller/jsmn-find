@@ -9,6 +9,7 @@ extern "C" {
 #error "jsmn-find.h should be included after jsmn.h"
 #endif
 
+/** @brief Internally used sized-buffer */
 struct _jsmnf_szbuf {
     /** buffer's contents */
     const char *contents;
@@ -64,9 +65,9 @@ JSMN_API void jsmnf_init(jsmnf_loader *loader);
 JSMN_API int jsmnf_load(jsmnf_loader *loader,
                         const char js[],
                         const jsmntok_t tokens[],
-                        const unsigned int num_tokens,
+                        unsigned int num_tokens,
                         jsmnf_pair pairs[],
-                        const unsigned int num_pairs);
+                        unsigned int num_pairs);
 
 /**
  * @brief Find a @ref jsmnf_pair token by its associated key
@@ -140,9 +141,9 @@ _jsmnf_get_pairs(struct jsmnf_loader *loader,
                  struct jsmnf_pair *curr,
                  const char js[],
                  const struct jsmntok *tok,
-                 const unsigned int num_tokens,
+                 unsigned int num_tokens,
                  struct jsmnf_pair *pairs,
-                 const unsigned int num_pairs)
+                 unsigned int num_pairs)
 {
     int offset = 0;
 
@@ -253,9 +254,9 @@ JSMN_API int
 jsmnf_load(struct jsmnf_loader *loader,
            const char js[],
            const struct jsmntok tokens[],
-           const unsigned int num_tokens,
+           unsigned int num_tokens,
            struct jsmnf_pair pairs[],
-           const unsigned int num_pairs)
+           unsigned int num_pairs)
 {
     if (!loader->pairnext) {
         pairs->value.contents = js + tokens->start;
