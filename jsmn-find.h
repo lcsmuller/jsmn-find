@@ -142,112 +142,105 @@ jsmnf_init(jsmnf_loader *loader)
 }
 
 static int
-_jsmnf_get_pairs(struct jsmnf_loader *loader,
-                 struct jsmnf_pair *curr,
-                 const char js[],
-                 const struct jsmntok *tok,
-                 unsigned num_tokens,
-                 struct jsmnf_pair *pairs,
-                 unsigned num_pairs)
+_jsmnf_load_pairs(struct jsmnf_loader *loader,
+                  struct jsmnf_pair *curr,
+                  const char js[],
+                  const struct jsmntok *tok,
+                  unsigned num_tokens,
+                  struct jsmnf_pair *pairs,
+                  unsigned num_pairs)
 {
     int offset = 0;
 
     if (!num_tokens) return 0;
 
     switch (tok->type) {
-    case JSMN_OBJECT: {
-        int pairstart = loader->pairnext;
+    case JSMN_STRING:
+    case JSMN_PRIMITIVE:
+        break;
+    default: { /* should be either JSMN_ARRAY or JSMN_OBJECT */
+        const unsigned top_idx = loader->pairnext + 1 + (tok->size * 1.3),
+                       bottom_idx = loader->pairnext;
         int ret;
 
-        if (tok->size > (int)(num_pairs - pairstart)
-            || (loader->pairnext + 1 + (tok->size * 1.3))
-                   > (num_pairs - pairstart))
+        if (tok->size > (int)(num_pairs - bottom_idx)
+            || top_idx > (num_pairs - bottom_idx))
         {
             return JSMN_ERROR_NOMEM;
         }
 
-        loader->pairnext += 1 + (tok->size * 1.3);
+        loader->pairnext = top_idx;
 
-        (void)chash_init_stack(curr, pairs + pairstart,
-                               loader->pairnext - pairstart, _JSMNF_TABLE);
+        (void)chash_init_stack(curr, &pairs[bottom_idx], top_idx - bottom_idx,
+                               _JSMNF_TABLE);
 
-        while (curr->length < tok->size) {
-            const struct jsmntok *_key = tok + 1 + offset;
-            struct jsmnf_pair *found = NULL;
-            struct _jsmnf_szbuf key, value = { 0 };
+        if (JSMN_OBJECT == tok->type) {
+            while (curr->length < tok->size) {
+                const struct jsmntok *_key = tok + 1 + offset;
+                struct jsmnf_pair *found = NULL;
+                struct _jsmnf_szbuf key, value = { 0 };
 
-            key.contents = js + _key->start;
-            key.length = _key->end - _key->start;
+                key.contents = js + _key->start;
+                key.length = _key->end - _key->start;
 
-            /* skip Key token */
-            offset += 1;
+                /* skip Key token */
+                offset += 1;
 
-            /* key->length > 0 means we're dealing with an Object or Array */
-            if (_key->size > 0) {
+                /* key->size > 0 means we're dealing with an Object or Array
+                 */
+                if (_key->size > 0) {
+                    const struct jsmntok *_value = tok + 1 + offset;
+
+                    value.contents = js + _value->start;
+                    value.length = _value->end - _value->start;
+
+                    chash_assign(curr, key, value, _JSMNF_TABLE);
+                    (void)chash_lookup_bucket(curr, key, found, _JSMNF_TABLE);
+
+                    ret = _jsmnf_load_pairs(loader, found, js, _value,
+                                            num_tokens - offset, pairs,
+                                            num_pairs);
+                    if (ret < 0) return ret;
+
+                    offset += ret;
+                }
+                else {
+                    chash_assign(curr, key, value, _JSMNF_TABLE);
+                    (void)chash_lookup_bucket(curr, key, found, _JSMNF_TABLE);
+                }
+            }
+            break;
+        }
+        if (JSMN_ARRAY == tok->type) {
+            for (; curr->length < tok->size; ++curr->length) {
                 const struct jsmntok *_value = tok + 1 + offset;
+                struct jsmnf_pair *pair = curr->buckets + curr->length;
+                struct _jsmnf_szbuf value;
 
                 value.contents = js + _value->start;
-                value.length = _value->end - _value->start;
+                value.length = _value->end - _value->end;
 
-                chash_assign(curr, key, value, _JSMNF_TABLE);
-                (void)chash_lookup_bucket(curr, key, found, _JSMNF_TABLE);
-
-                ret = _jsmnf_get_pairs(loader, found, js, _value,
-                                       num_tokens - offset, pairs, num_pairs);
+                ret = _jsmnf_load_pairs(loader, pair, js, _value,
+                                        num_tokens - offset, pairs, num_pairs);
                 if (ret < 0) return ret;
 
                 offset += ret;
-            }
-            else {
-                chash_assign(curr, key, value, _JSMNF_TABLE);
-                (void)chash_lookup_bucket(curr, key, found, _JSMNF_TABLE);
+
+                /* assign array element */
+                pair->value = value;
+                pair->state = CHASH_FILLED;
+                /* unused for array elements */
+                pair->key.contents = NULL;
+                pair->key.length = 0;
             }
         }
-    } break;
-    case JSMN_ARRAY: {
-        int pairstart = loader->pairnext;
-        int ret;
-
-        if (tok->size > (int)(num_pairs - pairstart)
-            || (loader->pairnext + 1 + (tok->size * 1.3))
-                   > (num_pairs - pairstart))
-            return JSMN_ERROR_NOMEM;
-
-        loader->pairnext += 1 + (tok->size * 1.3);
-
-        (void)chash_init_stack(curr, pairs + pairstart,
-                               loader->pairnext - pairstart, NULL);
-
-        for (; curr->length < tok->size; ++curr->length) {
-            const struct jsmntok *_value = tok + 1 + offset;
-            struct jsmnf_pair *pair = curr->buckets + curr->length;
-            struct _jsmnf_szbuf value;
-
-            value.contents = js + _value->start;
-            value.length = _value->end - _value->end;
-
-            ret = _jsmnf_get_pairs(loader, pair, js, _value,
-                                   num_tokens - offset, pairs, num_pairs);
-            if (ret < 0) return ret;
-
-            offset += ret;
-
-            /* assign array element */
-            pair->value = value;
-            pair->state = CHASH_FILLED;
-            /* unused for array elements */
-            pair->key.contents = NULL;
-            pair->key.length = 0;
-        }
-    } break;
-    case JSMN_STRING:
-    case JSMN_PRIMITIVE:
         break;
+    }
+    /* fall-through */
     case JSMN_UNDEFINED:
-    default:
         fprintf(stderr, "Unexpected key: %.*s\n", tok->end - tok->start,
                 js + tok->start);
-        return -1;
+        return JSMN_ERROR_INVAL;
     }
 
     curr->type = tok->type;
@@ -263,19 +256,23 @@ jsmnf_load(struct jsmnf_loader *loader,
            struct jsmnf_pair pairs[],
            unsigned num_pairs)
 {
+    int ret;
+
     if (!loader->pairnext) { /* first run, initialize pairs */
         static const struct jsmnf_pair blank_pair = { 0 };
         unsigned i = 0;
 
         for (; i < num_pairs; ++i)
             pairs[i] = blank_pair;
-
+        /* root */
         pairs[0].value.contents = js + tokens->start;
         pairs[0].value.length = tokens->end - tokens->start;
     }
 
-    return _jsmnf_get_pairs(loader, pairs, js, tokens, num_tokens, pairs,
+    ret = _jsmnf_load_pairs(loader, pairs, js, tokens, num_tokens, pairs,
                             num_pairs);
+    if (ret < 0) loader->pairnext = 0;
+    return ret;
 }
 
 JSMN_API struct jsmnf_pair *
