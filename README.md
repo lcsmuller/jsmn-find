@@ -2,46 +2,64 @@ JSMN-FIND
 =========
 
 jsmn-find is an add-on for the popular minimalistic JSON parser 
-[jsmn](https://github.com/zserge/jsmn).
+[jsmn](https://github.com/zserge/jsmn), it strives to keep a familiar and
+zero-allocation design.
 
 Dependencies
 ------------
 
 * [jsmn](https://github.com/zserge/jsmn) - Minimalistic JSON parser
-* [uthash](https://github.com/troydhanson/uthash) - Macro-based hashtable
+
+Included Dependencies
+---------------------
+
+* chash - Type-safe, stackful hashtable made by [antropez](https://github.com/antropez)
 
 Design
 ------
 
-jsmn-find organizes jsmn's JSON tokens under a hashtable, so they can be
-searched for.
+jsmn-find organizes jsmn's JSON tokens under a hashtable, so that they can be
+searched for in linear time.
 
 Usage
 -----
 
-Download `jsmn-find.h` and the [dependencies](#dependencies) should be visible to your linker search path:
+Download `jsmn-find.h` and the [dependencies](#dependencies) should be visible 
+to your linker search path:
 
 ```c
 #include "jsmn.h"
 #include "jsmn-find.h"
 
 ...
-jsmnf *root = jsmnf_init();
+// parse jsmn tokens first
+jsmn_parser parser;
+jsmntok_t tokens[256];
 
-r = jsmnf_start(root, json, strlen(json));
+jsmn_init(&parser);
+
+r = jsmn_parse(&parser, json, strlen(json), tokens, 256);
+if (r <= 0) error();
+
+// populate jsmnf_pairs with the jsmn tokens
+jsmnf_loader loader;
+jsmnf_pairs pairs[256];
+
+jsmnf_init(&loader);
+
+r = jsmnf_load(&loader, json, tokens, parser.toknext, pairs, 256);
+if (r <= 0) error();
 
 // assume the JSON : { "foo": { "bar": [ 1, 2, 3 ] } }
-jsmnf *f = jsmnf_find(root, "foo", strlen("foo"));
+jsmnf_pair *f = jsmnf_find(pairs, "foo", strlen("foo"));
 // Found: { "bar" : [ 1, 2, 3 ] }
-printf("Found: %.*s\n", f->val->end - f->val->start, json + f->val->start);
+printf("Found: %.*s\n", f->value.length, f->value.contents);
 ...
 // assume the JSON : [ 1, 2, [ 1, [ { "b":true } ] ] ]
 char *path[] = { "2", "1", "0", "b" };
-jsmnf *f = jsmnf_find_path(root, path, sizeof(path) / sizeof(char *));
+jsmnf_pair *f = jsmnf_find_path(pairs, path, sizeof(path) / sizeof(char *));
 // Found: true
-printf("Found: %.*s\n", f->val->end - f->val->start, json + f->val->start);
-...
-jsmnf_cleanup(root); // don't forget to cleanup jsmnf when you're done
+printf("Found: %.*s\n", f->value.length, f->value.contents);
 ```
 
 jsmn-find is single-header and should be compatible with jsmn additional macros for more complex uses cases. `#define JSMN_STATIC` hides all jsmn-find API symbols by making them static. Also, if you want to include `jsmn-find.h` from multiple C files, to avoid duplication of symbols you may define `JSMN_HEADER` macro.
@@ -60,18 +78,11 @@ jsmn-find is single-header and should be compatible with jsmn additional macros 
 API
 ---
 
-* `jsmnf_init()` - initialize a jsmnf root
-* `jsmnf_start()` - populate jsmnf root with JSMN tokens
-* `jsmnf_cleanup()` - cleanup jsmnf root resources
-* `jsmnf_find()` - locate a top JSMN token by its key
-* `jsmnf_find_path()` - locate a JSMN token by its key path
+* `jsmnf_init()` - initialize a `jsmnf_loader`
+* `jsmnf_load()` - populate `jsmnf_pair` array with JSMN tokens
+* `jsmnf_find()` - locate a `jsmnf_pair` by its associated key
+* `jsmnf_find_path()` - locate a `jsmnf_pair` by its full key path
 * `jsmnf_unescape()` - unescape a Unicode string
-
-More Documentation
-------------------
-
-Read jsmn documentation for additional information:
-[jsmn web page](http://zserge.com/jsmn.html)
 
 Other Info
 ----------
