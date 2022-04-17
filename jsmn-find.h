@@ -265,7 +265,7 @@ jsmnf_load(struct jsmnf_loader *loader,
 {
     if (!loader->pairnext) { /* first run, initialize pairs */
         static const struct jsmnf_pair blank_pair = { 0 };
-        unsigned i = 1;
+        unsigned i = 0;
 
         for (; i < num_pairs; ++i)
             pairs[i] = blank_pair;
@@ -465,46 +465,49 @@ _jsmnf_utf8_encode(unsigned long value, char utf8_seq[4])
     return 4;
 }
 
-static unsigned
-_jsmnf_utf8_append(unsigned long hex, char *unesc_tok)
+static int
+_jsmnf_utf8_append(unsigned long hex, char *buf_tok, const char *buf_end)
 {
     char utf8_seq[4];
     unsigned utf8_seqlen = _jsmnf_utf8_encode(hex, utf8_seq);
     unsigned i;
+
+    if ((buf_tok + utf8_seqlen) >= buf_end) return JSMN_ERROR_NOMEM;
+
     for (i = 0; i < utf8_seqlen; ++i)
-        unesc_tok[i] = utf8_seq[i];
+        buf_tok[i] = utf8_seq[i];
     return utf8_seqlen;
 }
 
-#define CHAR_PUSH(start, curr, c, bufsize)                                    \
+#define BUF_PUSH(buf_tok, c, buf_end)                                         \
     do {                                                                      \
-        if ((size_t)(curr - start + 1) >= bufsize) return JSMN_ERROR_NOMEM;   \
-        *curr++ = c;                                                          \
+        if (buf_tok >= buf_end) return JSMN_ERROR_NOMEM;                      \
+        *buf_tok++ = c;                                                       \
     } while (0)
 
 JSMN_API long
 jsmnf_unescape(char buf[], size_t bufsize, const char src[], size_t len)
 {
-    char *s = (char *)src, *end = (char *)src + len;
-    char *unesc_tok = buf;
+    char *src_tok = (char *)src, *const src_end = src_tok + len;
+    char *buf_tok = buf, *const buf_end = buf + bufsize;
     int second_surrogate_expected = 0;
     unsigned first_surrogate = 0;
 
-    while (*s && s < end) {
-        char c = *s++;
+    while (*src_tok && src_tok < src_end) {
+        char c = *src_tok++;
 
         if (0 <= c && c <= 0x1F) return JSMN_ERROR_INVAL;
 
         if (c != '\\') {
             if (second_surrogate_expected) return JSMN_ERROR_INVAL;
-            CHAR_PUSH(buf, unesc_tok, c, bufsize);
+            BUF_PUSH(buf_tok, c, buf_end);
             continue;
         }
 
         /* expects escaping but src is a well-formed string */
-        if (!*s || s == end) return JSMN_ERROR_PART;
+        if (!*src_tok || src_tok >= src_end) return JSMN_ERROR_PART;
 
-        c = *s++;
+        c = *src_tok++;
 
         if (second_surrogate_expected && c != 'u') return JSMN_ERROR_INVAL;
 
@@ -512,38 +515,41 @@ jsmnf_unescape(char buf[], size_t bufsize, const char src[], size_t len)
         case '"':
         case '\\':
         case '/':
-            CHAR_PUSH(buf, unesc_tok, c, bufsize);
+            BUF_PUSH(buf_tok, c, buf_end);
             break;
         case 'b':
-            CHAR_PUSH(buf, unesc_tok, '\b', bufsize);
+            BUF_PUSH(buf_tok, '\b', buf_end);
             break;
         case 'f':
-            CHAR_PUSH(buf, unesc_tok, '\f', bufsize);
+            BUF_PUSH(buf_tok, '\f', buf_end);
             break;
         case 'n':
-            CHAR_PUSH(buf, unesc_tok, '\n', bufsize);
+            BUF_PUSH(buf_tok, '\n', buf_end);
             break;
         case 'r':
-            CHAR_PUSH(buf, unesc_tok, '\r', bufsize);
+            BUF_PUSH(buf_tok, '\r', buf_end);
             break;
         case 't':
-            CHAR_PUSH(buf, unesc_tok, '\t', bufsize);
+            BUF_PUSH(buf_tok, '\t', buf_end);
             break;
         case 'u': {
             unsigned hex;
-            const int ret = _jsmnf_read_4_digits(s, end, &hex);
+            int ret = _jsmnf_read_4_digits(src_tok, src_end, &hex);
 
             if (ret != 4) return ret;
 
-            s += ret;
+            src_tok += ret;
 
             if (second_surrogate_expected) {
                 if (!_JSMNF_UTF16_IS_SECOND_SURROGATE(hex))
                     return JSMN_ERROR_INVAL;
 
-                unesc_tok += _jsmnf_utf8_append(
-                    _JSMNF_UTF16_JOIN_SURROGATE(first_surrogate, hex),
-                    unesc_tok);
+                ret = _jsmnf_utf8_append(
+                    _JSMNF_UTF16_JOIN_SURROGATE(first_surrogate, hex), buf_tok,
+                    buf_end);
+                if (ret < 0) return ret;
+
+                buf_tok += ret;
 
                 second_surrogate_expected = 0;
             }
@@ -552,15 +558,21 @@ jsmnf_unescape(char buf[], size_t bufsize, const char src[], size_t len)
                 first_surrogate = hex;
             }
             else {
-                unesc_tok += _jsmnf_utf8_append(hex, unesc_tok);
+                ret = _jsmnf_utf8_append(hex, buf_tok, buf_end);
+                if (ret < 0) return ret;
+
+                buf_tok += ret;
             }
         } break;
         default:
             return JSMN_ERROR_INVAL;
         }
     }
-    return _jsmnf_utf8_validate(buf, unesc_tok);
+    return _jsmnf_utf8_validate(buf, buf_tok);
 }
+
+#undef BUF_PUSH
+
 #endif /* JSMN_HEADER */
 
 #ifdef __cplusplus
