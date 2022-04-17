@@ -22,7 +22,8 @@ print_jsmnerr(enum jsmnerr code)
         return "JSMN_ERROR_PART: The string is not a full JSON packet, more "
                "bytes expected";
     default:
-        if (code >= 0) return "No error encountered";
+        if (code == 0) return "Empty string";
+        if (code > 0) return "No error encountered";
         return "Unknown error";
     }
 }
