@@ -87,7 +87,7 @@ SUITE(fn__jsmnf_unescape)
 }
 
 TEST
-check_load_without_enough_pairs(void)
+check_load_not_enough_pairs_for_tokens(void)
 {
     const char json[] = "{\"foo\":{\"bar\":{\"baz\":[true]}}}";
     jsmn_parser parser;
@@ -127,6 +127,36 @@ check_load_without_enough_pairs(void)
 }
 
 TEST
+check_load_basic(void)
+{
+    const char json[] = "{\"a\":1,\"c\":{}}";
+
+    jsmn_parser parser;
+    jsmntok_t toks[32];
+    jsmnf_loader loader;
+    jsmnf_pair pairs[16];
+    long ret;
+
+    jsmn_init(&parser);
+    jsmnf_init(&loader);
+
+    jsmn_parse(&parser, json, sizeof(json) - 1, toks,
+               sizeof(toks) / sizeof *toks);
+
+    /* not enough pairs should return JSMN_ERROR_NOMEM */
+    ASSERT_EQm(print_jsmnerr(ret), JSMN_ERROR_NOMEM,
+               ret = jsmnf_load(&loader, json, toks, parser.toknext, pairs,
+                                sizeof(pairs) / sizeof *pairs / 2));
+    /* simulate realloc */
+    ASSERT_GTm(print_jsmnerr(ret),
+               ret = jsmnf_load(&loader, json, toks, parser.toknext, pairs,
+                                sizeof(pairs) / sizeof *pairs),
+               0);
+
+    PASS();
+}
+
+TEST
 check_load_array(void)
 {
     const char json[] = "[1, [1, 2, [1, 2, 3, [true]]]]";
@@ -160,7 +190,8 @@ check_load_array(void)
 
 SUITE(fn__jsmnf_load)
 {
-    RUN_TEST(check_load_without_enough_pairs);
+    RUN_TEST(check_load_not_enough_pairs_for_tokens);
+    RUN_TEST(check_load_basic);
     RUN_TEST(check_load_array);
 }
 
@@ -234,7 +265,7 @@ check_find_array(void)
     /* test key search */
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "0", 1));
     ASSERT_STRN_EQ("1", f->value.contents, f->value.length);
-    ASSERT_NEQ(NULL, f = jsmnf_find(f, "1", 1));
+    ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "1", 1));
     ASSERT_STRN_EQ("1", f->buckets[0].value.contents,
                    f->buckets[0].value.length);
     ASSERT_STRN_EQ("2", f->buckets[1].value.contents,
