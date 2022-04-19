@@ -29,6 +29,128 @@ print_jsmnerr(enum jsmnerr code)
 }
 
 TEST
+check_load_dynamic_pairs(void)
+{
+    const char json_small[] = "{\"foo\":[true]}";
+    const char json_large[] = "{\"foo\":{\"bar\":{\"baz\":[true]}}}";
+    jsmn_parser parser;
+    jsmntok_t toks[64];
+    jsmnf_loader loader;
+    jsmnf_pair *pairs = NULL, *f;
+    unsigned num_pairs;
+    long ret;
+
+    jsmn_init(&parser);
+    jsmnf_init(&loader);
+
+    jsmn_parse(&parser, json_small, sizeof(json_small) - 1, toks,
+               sizeof(toks) / sizeof *toks);
+
+    ASSERT_GTm(print_jsmnerr(ret),
+               ret = jsmnf_load_auto(&loader, json_small, toks, parser.toknext,
+                                     &pairs, 0),
+               0);
+    num_pairs = ret;
+
+    ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
+    ASSERT_NEQ(NULL, f = jsmnf_find(f, "0", sizeof("0") - 1));
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.length);
+    ASSERT_STRN_EQ("true", f->value.contents, f->value.length);
+
+    jsmn_init(&parser);
+    jsmnf_init(&loader);
+
+    jsmn_parse(&parser, json_large, sizeof(json_large) - 1, toks,
+               sizeof(toks) / sizeof *toks);
+
+    ASSERT_GTm(print_jsmnerr(ret),
+               ret = jsmnf_load_auto(&loader, json_large, toks, parser.toknext,
+                                     &pairs, num_pairs),
+               0);
+
+    ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
+    ASSERT_STRN_EQ("foo", f->key.contents, f->key.length);
+    ASSERT_NEQ(NULL, f = jsmnf_find(f, "bar", sizeof("bar") - 1));
+    ASSERT_STRN_EQ("bar", f->key.contents, f->key.length);
+    ASSERT_NEQ(NULL, f = jsmnf_find(f, "baz", sizeof("baz") - 1));
+    ASSERT_STRN_EQ("baz", f->key.contents, f->key.length);
+    ASSERT_NEQ(NULL, f = jsmnf_find(f, "0", sizeof("0") - 1));
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.length);
+    ASSERT_STRN_EQ("true", f->value.contents, f->value.length);
+
+    free(pairs);
+
+    PASS();
+}
+
+TEST
+check_load_dynamic_pairs_and_tokens(void)
+{
+    const char json_small[] = "{\"foo\":[true]}";
+    const char json_large[] = "{\"foo\":{\"bar\":{\"baz\":[true]}}}";
+    jsmn_parser parser;
+    jsmntok_t *toks = NULL;
+    jsmnf_loader loader;
+    jsmnf_pair *pairs = NULL, *f;
+    unsigned num_tokens, num_pairs;
+    long ret;
+
+    jsmn_init(&parser);
+    jsmnf_init(&loader);
+
+    ASSERT_GTm(print_jsmnerr(ret),
+               ret = jsmn_parse_auto(&parser, json_small,
+                                     sizeof(json_small) - 1, &toks, 0),
+               0);
+    num_tokens = ret;
+
+    ASSERT_GTm(print_jsmnerr(ret),
+               ret = jsmnf_load_auto(&loader, json_small, toks, parser.toknext,
+                                     &pairs, 0),
+               0);
+    num_pairs = ret;
+
+    ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
+    ASSERT_NEQ(NULL, f = jsmnf_find(f, "0", sizeof("0") - 1));
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.length);
+    ASSERT_STRN_EQ("true", f->value.contents, f->value.length);
+
+    jsmn_init(&parser);
+    jsmnf_init(&loader);
+
+    ASSERT_GTm(print_jsmnerr(ret),
+               ret =
+                   jsmn_parse_auto(&parser, json_large, sizeof(json_large) - 1,
+                                   &toks, num_tokens),
+               0);
+    ASSERT_GTm(print_jsmnerr(ret),
+               ret = jsmnf_load_auto(&loader, json_large, toks, parser.toknext,
+                                     &pairs, num_pairs),
+               0);
+
+    ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
+    ASSERT_STRN_EQ("foo", f->key.contents, f->key.length);
+    ASSERT_NEQ(NULL, f = jsmnf_find(f, "bar", sizeof("bar") - 1));
+    ASSERT_STRN_EQ("bar", f->key.contents, f->key.length);
+    ASSERT_NEQ(NULL, f = jsmnf_find(f, "baz", sizeof("baz") - 1));
+    ASSERT_STRN_EQ("baz", f->key.contents, f->key.length);
+    ASSERT_NEQ(NULL, f = jsmnf_find(f, "0", sizeof("0") - 1));
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.length);
+    ASSERT_STRN_EQ("true", f->value.contents, f->value.length);
+
+    free(toks);
+    free(pairs);
+
+    PASS();
+}
+
+SUITE(fn__jsmnf_load_auto)
+{
+    RUN_TEST(check_load_dynamic_pairs);
+    RUN_TEST(check_load_dynamic_pairs_and_tokens);
+}
+
+TEST
 check_unescaping(char *(*accept)[3])
 {
     char buf[256] = "";
@@ -333,6 +455,7 @@ main(int argc, char *argv[])
 {
     GREATEST_MAIN_BEGIN();
 
+    RUN_SUITE(fn__jsmnf_load_auto);
     RUN_SUITE(fn__jsmnf_unescape);
     RUN_SUITE(fn__jsmnf_load);
     RUN_SUITE(fn__jsmnf_find);
