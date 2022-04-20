@@ -1,8 +1,9 @@
 # JSMN-FIND
 
-jsmn-find is an add-on for the popular minimalistic JSON parser 
-[jsmn](https://github.com/zserge/jsmn), it strives to keep a familiar and
-zero-allocation design.
+jsmn-find is a ANSI C add-on for the minimalistic JSON tokenizer
+[jsmn](https://github.com/zserge/jsmn), it offers a familiar and
+zero-allocation design. Its serializer counterpart counterpart can be found
+at [json-build](https://github.com/lcsmuller/json-build).
 
 ## Dependencies
 
