@@ -319,6 +319,9 @@ jsmnf_load(struct jsmnf_loader *loader,
 
     ret = _jsmnf_load_pairs(loader, pairs, js, tokens, num_tokens, pairs,
                             num_pairs);
+
+    /* TODO: rather than reseting pairnext keep the last 'bucket' ptr stored,
+     *      so it can continue from the in the next try */
     if (ret < 0) loader->pairnext = 0;
     return ret;
 }
@@ -371,7 +374,7 @@ jsmn_parse_auto(struct jsmn_parser *parser,
 {
     int ret;
 
-    if (NULL == *p_tokens) {
+    if (NULL == *p_tokens || !num_tokens) {
         *p_tokens = malloc(sizeof **p_tokens);
         num_tokens = 1;
     }
@@ -405,7 +408,7 @@ jsmnf_load_auto(struct jsmnf_loader *loader,
 {
     int ret;
 
-    if (NULL == *p_pairs) {
+    if (NULL == *p_pairs || !num_pairs) {
         *p_pairs = malloc(sizeof **p_pairs);
         num_pairs = 1;
     }
