@@ -405,10 +405,45 @@ check_find_array(void)
     PASS();
 }
 
+TEST
+check_find_string_elements_in_array(void)
+{
+    const char json[] = "{\"modules\":[\"foo\",\"bar\",\"baz\",\"tuna\"]}";
+    jsmn_parser parser;
+    jsmntok_t toks[64];
+    jsmnf_loader loader;
+    jsmnf_pair pairs[64], *f1, *f2;
+
+    jsmn_init(&parser);
+    jsmnf_init(&loader);
+
+    jsmn_parse(&parser, json, sizeof(json) - 1, toks,
+               sizeof(toks) / sizeof *toks);
+
+    jsmnf_load(&loader, json, toks, parser.toknext, pairs,
+               sizeof(pairs) / sizeof *pairs);
+
+    ASSERT_NEQ(NULL, f1 = jsmnf_find(pairs, "modules", 7));
+
+    /* test direct search */
+    f2 = &f1->buckets[0];
+    ASSERT_STRN_EQ("foo", f2->value.contents, f2->value.length);
+    f2 = &f1->buckets[1];
+    ASSERT_STRN_EQ("bar", f2->value.contents, f2->value.length);
+    f2 = &f1->buckets[2];
+    ASSERT_STRN_EQ("baz", f2->value.contents, f2->value.length);
+    f2 = &f1->buckets[3];
+    ASSERT_STRN_EQ("tuna", f2->value.contents, f2->value.length);
+
+
+    PASS();
+}
+
 SUITE(fn__jsmnf_find)
 {
     RUN_TEST(check_find_nested);
     RUN_TEST(check_find_array);
+    RUN_TEST(check_find_string_elements_in_array);
 }
 
 TEST
