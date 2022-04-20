@@ -19,11 +19,11 @@ jsmntok_t " "tokens" "[], "
 "[], int " "depth" ");"
 .br
 .BI "int jsmnf_parse_auto(jsmnf_parser *" "parser" ", const char " "js" "[], \
-size_t " "len" ", jsmntok_t **" "p_tokens" ", unsigned " "num_tokens" ");"
+size_t " "len" ", jsmntok_t **" "p_tokens" ", unsigned *" "num_tokens" ");"
 .br
 .BI "int jsmnf_load_auto(jsmnf_loader *" "loader" ", const char " "js" "[], \
 jsmntok_t " "tokens" "[], unsigned " "num_tokens" ", jsmnf_pair **" \
-"p_pairs" ", unsigned " "num_pairs" ");"
+"p_pairs" ", unsigned *" "num_pairs" ");"
 .br
 .BI "long jsmnf_unescape(char " "buf" "[], size_t " "bufsize" ", const char " \
 "src" "[], size_t " "length" ");"
