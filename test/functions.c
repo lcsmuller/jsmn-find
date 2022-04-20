@@ -37,7 +37,7 @@ check_load_dynamic_pairs(void)
     jsmntok_t toks[64];
     jsmnf_loader loader;
     jsmnf_pair *pairs = NULL, *f;
-    unsigned num_pairs;
+    unsigned num_pairs = 0;
     long ret;
 
     jsmn_init(&parser);
@@ -48,9 +48,8 @@ check_load_dynamic_pairs(void)
 
     ASSERT_GTm(print_jsmnerr(ret),
                ret = jsmnf_load_auto(&loader, json_small, toks, parser.toknext,
-                                     &pairs, 0),
+                                     &pairs, &num_pairs),
                0);
-    num_pairs = ret;
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
     ASSERT_NEQ(NULL, f = jsmnf_find(f, "0", sizeof("0") - 1));
@@ -65,7 +64,7 @@ check_load_dynamic_pairs(void)
 
     ASSERT_GTm(print_jsmnerr(ret),
                ret = jsmnf_load_auto(&loader, json_large, toks, parser.toknext,
-                                     &pairs, num_pairs),
+                                     &pairs, &num_pairs),
                0);
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
@@ -92,7 +91,7 @@ check_load_dynamic_pairs_and_tokens(void)
     jsmntok_t *toks = NULL;
     jsmnf_loader loader;
     jsmnf_pair *pairs = NULL, *f;
-    unsigned num_tokens, num_pairs;
+    unsigned num_tokens = 0, num_pairs = 0;
     long ret;
 
     jsmn_init(&parser);
@@ -100,15 +99,13 @@ check_load_dynamic_pairs_and_tokens(void)
 
     ASSERT_GTm(print_jsmnerr(ret),
                ret = jsmn_parse_auto(&parser, json_small,
-                                     sizeof(json_small) - 1, &toks, 0),
+                                     sizeof(json_small) - 1, &toks, &num_tokens),
                0);
-    num_tokens = ret;
 
     ASSERT_GTm(print_jsmnerr(ret),
-               ret = jsmnf_load_auto(&loader, json_small, toks, parser.toknext,
-                                     &pairs, 0),
+               ret = jsmnf_load_auto(&loader, json_small, toks, num_tokens,
+                                     &pairs, &num_pairs),
                0);
-    num_pairs = ret;
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
     ASSERT_NEQ(NULL, f = jsmnf_find(f, "0", sizeof("0") - 1));
@@ -121,11 +118,11 @@ check_load_dynamic_pairs_and_tokens(void)
     ASSERT_GTm(print_jsmnerr(ret),
                ret =
                    jsmn_parse_auto(&parser, json_large, sizeof(json_large) - 1,
-                                   &toks, num_tokens),
+                                   &toks, &num_tokens),
                0);
     ASSERT_GTm(print_jsmnerr(ret),
                ret = jsmnf_load_auto(&loader, json_large, toks, parser.toknext,
-                                     &pairs, num_pairs),
+                                     &pairs, &num_pairs),
                0);
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
