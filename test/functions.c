@@ -37,7 +37,7 @@ check_load_dynamic_pairs(void)
     jsmntok_t toks[64];
     jsmnf_loader loader;
     jsmnf_pair *pairs = NULL, *f;
-    unsigned num_pairs;
+    unsigned num_pairs = 0;
     long ret;
 
     jsmn_init(&parser);
@@ -48,9 +48,8 @@ check_load_dynamic_pairs(void)
 
     ASSERT_GTm(print_jsmnerr(ret),
                ret = jsmnf_load_auto(&loader, json_small, toks, parser.toknext,
-                                     &pairs, 0),
+                                     &pairs, &num_pairs),
                0);
-    num_pairs = ret;
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
     ASSERT_NEQ(NULL, f = jsmnf_find(f, "0", sizeof("0") - 1));
@@ -65,7 +64,7 @@ check_load_dynamic_pairs(void)
 
     ASSERT_GTm(print_jsmnerr(ret),
                ret = jsmnf_load_auto(&loader, json_large, toks, parser.toknext,
-                                     &pairs, num_pairs),
+                                     &pairs, &num_pairs),
                0);
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
@@ -92,7 +91,7 @@ check_load_dynamic_pairs_and_tokens(void)
     jsmntok_t *toks = NULL;
     jsmnf_loader loader;
     jsmnf_pair *pairs = NULL, *f;
-    unsigned num_tokens, num_pairs;
+    unsigned num_tokens = 0, num_pairs = 0;
     long ret;
 
     jsmn_init(&parser);
@@ -100,15 +99,13 @@ check_load_dynamic_pairs_and_tokens(void)
 
     ASSERT_GTm(print_jsmnerr(ret),
                ret = jsmn_parse_auto(&parser, json_small,
-                                     sizeof(json_small) - 1, &toks, 0),
+                                     sizeof(json_small) - 1, &toks, &num_tokens),
                0);
-    num_tokens = ret;
 
     ASSERT_GTm(print_jsmnerr(ret),
-               ret = jsmnf_load_auto(&loader, json_small, toks, parser.toknext,
-                                     &pairs, 0),
+               ret = jsmnf_load_auto(&loader, json_small, toks, num_tokens,
+                                     &pairs, &num_pairs),
                0);
-    num_pairs = ret;
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
     ASSERT_NEQ(NULL, f = jsmnf_find(f, "0", sizeof("0") - 1));
@@ -121,11 +118,11 @@ check_load_dynamic_pairs_and_tokens(void)
     ASSERT_GTm(print_jsmnerr(ret),
                ret =
                    jsmn_parse_auto(&parser, json_large, sizeof(json_large) - 1,
-                                   &toks, num_tokens),
+                                   &toks, &num_tokens),
                0);
     ASSERT_GTm(print_jsmnerr(ret),
                ret = jsmnf_load_auto(&loader, json_large, toks, parser.toknext,
-                                     &pairs, num_pairs),
+                                     &pairs, &num_pairs),
                0);
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, "foo", sizeof("foo") - 1));
@@ -405,10 +402,45 @@ check_find_array(void)
     PASS();
 }
 
+TEST
+check_find_string_elements_in_array(void)
+{
+    const char json[] = "{\"modules\":[\"foo\",\"bar\",\"baz\",\"tuna\"]}";
+    jsmn_parser parser;
+    jsmntok_t toks[64];
+    jsmnf_loader loader;
+    jsmnf_pair pairs[64], *f1, *f2;
+
+    jsmn_init(&parser);
+    jsmnf_init(&loader);
+
+    jsmn_parse(&parser, json, sizeof(json) - 1, toks,
+               sizeof(toks) / sizeof *toks);
+
+    jsmnf_load(&loader, json, toks, parser.toknext, pairs,
+               sizeof(pairs) / sizeof *pairs);
+
+    ASSERT_NEQ(NULL, f1 = jsmnf_find(pairs, "modules", 7));
+
+    /* test direct search */
+    f2 = &f1->buckets[0];
+    ASSERT_STRN_EQ("foo", f2->value.contents, f2->value.length);
+    f2 = &f1->buckets[1];
+    ASSERT_STRN_EQ("bar", f2->value.contents, f2->value.length);
+    f2 = &f1->buckets[2];
+    ASSERT_STRN_EQ("baz", f2->value.contents, f2->value.length);
+    f2 = &f1->buckets[3];
+    ASSERT_STRN_EQ("tuna", f2->value.contents, f2->value.length);
+
+
+    PASS();
+}
+
 SUITE(fn__jsmnf_find)
 {
     RUN_TEST(check_find_nested);
     RUN_TEST(check_find_array);
+    RUN_TEST(check_find_string_elements_in_array);
 }
 
 TEST
