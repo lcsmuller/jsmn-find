@@ -48,7 +48,9 @@
 #define chash_string_compare(cmp_a, cmp_b) \
     (strcmp((cmp_a), (cmp_b)) == 0)
 
-
+#define chash_default_init(bucket, _key, _value) \
+    (bucket).key = (_key);                       \
+    (bucket).value = _value
 
 
 
@@ -74,9 +76,9 @@
 #define __chash_abs(x) \
     ((x) < 0 ? (x) * - 1 : (x))
 
-#define __chash_hash(mod, _key, namespace)                 \
+#define __chash_hash(mod, _key, namespace)                   \
     __CHASH_HASH = namespace ## _HASH((_key), __CHASH_HASH); \
-    __CHASH_HASH = __CHASH_HASH % (mod);                   \
+    __CHASH_HASH = __CHASH_HASH % (mod);                     \
     __CHASH_HASH = __chash_abs(__CHASH_HASH);
 
 #define __chash_probe(hashtable, _key, namespace)                             \
@@ -109,7 +111,8 @@
 do {                                                                        \
   CHASH_COUNTER_TYPE __CHASH_INDEX = 0;                                     \
   namespace ## _BUCKET *__CHASH_BUCKETS = NULL;                             \
-  int __CHASH_NEXT_SIZE = CHASH_RESIZE((hashtable)->capacity);              \
+  CHASH_COUNTER_TYPE __CHASH_NEXT_SIZE = (CHASH_COUNTER_TYPE)               \
+                          CHASH_RESIZE((hashtable)->capacity);              \
                                                                             \
   if((namespace ## _HEAP) == 0) {                                           \
     if((hashtable)->length != (hashtable)->capacity) {                      \
@@ -125,27 +128,30 @@ do {                                                                        \
      (double) (hashtable)->capacity < CHASH_LOAD_THRESHOLD)                 \
     break;                                                                  \
                                                                             \
-  __CHASH_BUCKETS = malloc(__CHASH_NEXT_SIZE                                \
-                           * sizeof(namespace ## _BUCKET));                 \
-  memset(__CHASH_BUCKETS, 0, __CHASH_NEXT_SIZE                              \
-                           * sizeof(namespace ## _BUCKET));                 \
+  __CHASH_BUCKETS = malloc((size_t) (__CHASH_NEXT_SIZE                      \
+                           * ((CHASH_COUNTER_TYPE)                          \
+                               sizeof(namespace ## _BUCKET))));             \
+  memset(__CHASH_BUCKETS, 0, ((size_t) (__CHASH_NEXT_SIZE                   \
+                           * ((CHASH_COUNTER_TYPE)                          \
+                           sizeof(namespace ## _BUCKET)))));                \
                                                                             \
   for(__CHASH_INDEX = 0; __CHASH_INDEX < (hashtable)->capacity;             \
                                                          __CHASH_INDEX++) { \
-    __CHASH_KEY_BUCKET.key = (hashtable)->buckets[__CHASH_INDEX].key;       \
+    namespace ## _BUCKET __CHASH_NEW_KEY_BUCKET;                            \
+    memset(&__CHASH_NEW_KEY_BUCKET, 0, sizeof(namespace ## _BUCKET));       \
+    namespace ## _INIT(__CHASH_NEW_KEY_BUCKET,                              \
+                      (hashtable)->buckets[__CHASH_INDEX].key,              \
+                      (hashtable)->buckets[__CHASH_INDEX].value);           \
                                                                             \
     if((hashtable)->buckets[__CHASH_INDEX].state != CHASH_FILLED)           \
       continue;                                                             \
                                                                             \
-    __chash_hash(__CHASH_NEXT_SIZE, __CHASH_KEY_BUCKET.key, namespace);     \
+    __chash_hash(__CHASH_NEXT_SIZE, __CHASH_NEW_KEY_BUCKET.key, namespace); \
     __chash_probe_to_unfilled(__CHASH_NEXT_SIZE,                            \
                               (hashtable)->buckets[__CHASH_INDEX].key,      \
                               __CHASH_BUCKETS, namespace)                   \
                                                                             \
-    __CHASH_BUCKETS[__CHASH_HASH].key =                                     \
-                                   (hashtable)->buckets[__CHASH_INDEX].key; \
-    __CHASH_BUCKETS[__CHASH_HASH].value =                                   \
-                                 (hashtable)->buckets[__CHASH_INDEX].value; \
+    __CHASH_BUCKETS[__CHASH_HASH] = __CHASH_NEW_KEY_BUCKET;                 \
     __CHASH_BUCKETS[__CHASH_HASH].state = CHASH_FILLED;                     \
     __CHASH_HASH = 0;                                                       \
   }                                                                         \
@@ -212,6 +218,8 @@ do {                                                                 \
 do {                                                                     \
   long __CHASH_HASH = 0;                                                 \
   namespace ## _BUCKET __CHASH_KEY_BUCKET;                               \
+  memset(&__CHASH_KEY_BUCKET, 0, sizeof(namespace ## _BUCKET));          \
+  namespace ## _INIT(__CHASH_KEY_BUCKET, _key, _value);                  \
                                                                          \
   __chash_assert_nonnull(chash_assign, hashtable);                       \
   __chash_assert_nonnull(chash_assign, (hashtable)->buckets);            \
@@ -226,8 +234,7 @@ do {                                                                     \
      (hashtable)->length++;                                              \
   }                                                                      \
                                                                          \
-  (hashtable)->buckets[__CHASH_HASH].key = _key;                         \
-  (hashtable)->buckets[__CHASH_HASH].value = _value;                     \
+  (hashtable)->buckets[__CHASH_HASH] = __CHASH_KEY_BUCKET;               \
   (hashtable)->buckets[__CHASH_HASH].state = CHASH_FILLED;               \
 } while(0)
 
@@ -238,7 +245,8 @@ do {                                                                        \
   int __CHASH_INDEX = 0;                                                    \
   long __CHASH_HASH = 0;                                                    \
   namespace ## _BUCKET __CHASH_KEY_BUCKET;                                  \
-  __CHASH_KEY_BUCKET.key = (_key);                                          \
+  memset(&__CHASH_KEY_BUCKET, 0, sizeof(namespace ## _BUCKET));             \
+  namespace ## _INIT(__CHASH_KEY_BUCKET, _key, __CHASH_KEY_BUCKET.value);   \
                                                                             \
   (void) __CHASH_KEY_BUCKET;                                                \
                                                                             \
@@ -305,7 +313,8 @@ do {                                                                       \
   CHASH_COUNTER_TYPE __CHASH_INDEX = 0;                                    \
   long __CHASH_HASH = 0;                                                   \
   namespace ## _BUCKET __CHASH_KEY_BUCKET;                                 \
-  __CHASH_KEY_BUCKET.key = (_key);                                         \
+  memset(&__CHASH_KEY_BUCKET, 0, sizeof(namespace ## _BUCKET));            \
+  namespace ## _INIT(__CHASH_KEY_BUCKET, _key, __CHASH_KEY_BUCKET.value);  \
                                                                            \
   (void) __CHASH_KEY_BUCKET;                                               \
                                                                            \
