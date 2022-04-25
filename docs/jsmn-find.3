@@ -6,22 +6,22 @@
 .br
 .BI "void jsmnf_init(jsmnf_loader *" "loader" ");"
 .br
-.BI "int jsmnf_load(jsmnf_loader *" "loader" ", const char " "js" "[], \
+.BI "int jsmnf_load(jsmnf_loader *" "loader" ", const char *" "js" ", \
 jsmntok_t " "tokens" "[], "
 .br
 .BI "                unsigned " "num_tokens" ", jsmnf_pair " \
 "pairs" "[], unsigned " "num_pairs" ");"
 .br
-.BI "jsmnf_pair *jsmnf_find(jsmnf_pair *" "head" ", const char " "key" \
-"[], int " "length" ");"
+.BI "jsmnf_pair *jsmnf_find(jsmnf_pair *" "head" ", const char *" "js" ", \
+const char " "key" "[], int " "length" ");"
 .br
-.BI "jsmnf_pair *jsmnf_find_path(jsmnf_pair *" "head" ", char *const " "path" \
-"[], int " "depth" ");"
+.BI "jsmnf_pair *jsmnf_find_path(jsmnf_pair *" "head" ", const char *" "js" \
+", char *const " "path" "[], int " "depth" ");"
 .br
-.BI "int jsmnf_parse_auto(jsmnf_parser *" "parser" ", const char " "js" "[], \
-size_t " "len" ", jsmntok_t **" "p_tokens" ", unsigned *" "num_tokens" ");"
+.BI "int jsmnf_parse_auto(jsmnf_parser *" "parser" ", const char *" "js" ", \
+size_t " "length" ", jsmntok_t **" "p_tokens" ", unsigned *" "num_tokens" ");"
 .br
-.BI "int jsmnf_load_auto(jsmnf_loader *" "loader" ", const char " "js" "[], \
+.BI "int jsmnf_load_auto(jsmnf_loader *" "loader" ", const char *" "js" ", \
 jsmntok_t " "tokens" "[], unsigned " "num_tokens" ", jsmnf_pair **" \
 "p_pairs" ", unsigned *" "num_pairs" ");"
 .br
@@ -133,7 +133,7 @@ int main(void) {
 .br
     // Found: { "bar" : [ 1, 2, 3 ] }
 .br
-    printf("Found: %.*s\\n", f->value.length, f->value.contents);
+    printf("Found: %.*s\\n", f->value.end - f->value.start, json + f->value.start);
 .br
 
     ...
@@ -147,7 +147,7 @@ int main(void) {
 
     // Found: true
 .br
-    printf("Found: %.*s\\n", f->value.length, f->value.contents);
+    printf("Found: %.*s\\n", f->value.end - f->value.start, json + f->value.start);
 .br
 }
 .br

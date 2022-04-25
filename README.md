@@ -34,7 +34,7 @@ jsmntok_t tokens[256];
 
 jsmn_init(&parser);
 
-r jsmn_parse(&parser, json, strlen(json), tokens, 256);
+r = jsmn_parse(&parser, json, strlen(json), tokens, 256);
 if (r < 0) error();
 
 // populate jsmnf_pairs with the jsmn tokens
@@ -51,15 +51,15 @@ if (r < 0) error();
 jsmnf_pair *f;
 
 // assume the JSON : { "foo": { "bar": [ true, null, null ] } }
-if ((f = jsmnf_find(pairs, "foo", strlen("foo")))) {
+if ((f = jsmnf_find(pairs, json, "foo", strlen("foo")))) {
     // Found: { "bar" : [ true, null, null ] }
-    printf("Found: %.*s\n", f->value.length, f->value.contents);
-    if ((f = jsmnf_find(f, "bar", 3))) {
+    printf("Found: %.*s\n", f->value.end - f->value.start, json + f->value.start);
+    if ((f = jsmnf_find(f, json, "bar", 3))) {
         // Found: [ true, null, null ]
-        printf("Found: %.*s\n", f->value.length, f->value.contents);
-        if ((f = jsmn_find(f, "0", 1))) {
+        printf("Found: %.*s\n", f->value.end - f->value.start, json + f->value.start);
+        if ((f = jsmn_find(f, json, "0", 1))) {
             // Found: true
-            printf("Found: %.*s\n", f->value.length, f->value.contents);
+            printf("Found: %.*s\n", f->value.end - f->value.start, json + f->value.start);
         }
     }
 }
@@ -72,10 +72,10 @@ jsmnf_pair *f;
 // assume the JSON : [ null, [ true, null, null ] ]
 f = &pairs->buckets[1];
 // Found: [ true, null, null ]
-printf("Found: %.*s\n", f->value.length, f->value.contents);
+printf("Found: %.*s\n", f->value.end - f->value.start, json + f->value.start);
 f = &f->buckets[0];
 // Found: true
-printf("Found: %.*s\n", f->value.length, f->value.contents);
+printf("Found: %.*s\n", f->value.end - f->value.start, json + f->value.start);
 ```
 
 `find path (key search for objects and arrays)`
@@ -86,7 +86,7 @@ jsmnf_pair *f;
 // assume the JSON : [ 1, 2, [ 1, [ { "b":true } ] ] ]
 if ((f = jsmnf_find_path(pairs, path, sizeof(path) / sizeof *path))) {
     // Found: true
-    printf("Found: %.*s\n", f->value.length, f->value.contents);
+    printf("Found: %.*s\n", f->value.end - f->value.start, json + f->value.start);
 }
 ```
 
