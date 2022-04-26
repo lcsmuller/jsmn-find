@@ -12,9 +12,9 @@ extern "C" {
 /** @brief JSON token description */
 struct jsmnftok {
     /** start position in JSON data string */
-    int start;
-    /** end position in JSON data string */
-    int end;
+    int pos;
+    /** length of token in JSON data string */
+    size_t len;
 };
 
 /** @brief JSON object */
@@ -167,17 +167,17 @@ JSMN_API long jsmnf_unescape(char buf[],
     5031;                                                                     \
     do {                                                                      \
         unsigned __CHASH_HINDEX;                                              \
-        unsigned _len = (key).end - (key).start;                              \
-        for (__CHASH_HINDEX = 0; __CHASH_HINDEX < _len; ++__CHASH_HINDEX) {   \
+        for (__CHASH_HINDEX = 0; __CHASH_HINDEX < (key).len;                  \
+             ++__CHASH_HINDEX) {                                              \
             (hash) = (((hash) << 1) + (hash))                                 \
-                     + _JSMNF_STRING_B[(key).start + __CHASH_HINDEX];         \
+                     + _JSMNF_STRING_B[(key).pos + __CHASH_HINDEX];           \
         }                                                                     \
     } while (0)
 
 /* compare jsmnf keys */
 #define _jsmnf_key_compare(cmp_a, cmp_b)                                      \
-    (!strncmp(_JSMNF_STRING_B + (cmp_a).start,                                \
-              _JSMNF_STRING_A + (cmp_b).start, (cmp_b).end - (cmp_b).start))
+    (!strncmp(_JSMNF_STRING_B + (cmp_a).pos, _JSMNF_STRING_A + (cmp_b).pos,   \
+              (cmp_b).len))
 
 #define _JSMNF_TABLE_HEAP   0
 #define _JSMNF_TABLE_BUCKET struct jsmnf_pair
@@ -236,8 +236,8 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
                 struct jsmnf_pair *found = NULL;
                 struct jsmnftok key, value = { 0 };
 
-                key.start = _key->start;
-                key.end = _key->end;
+                key.pos = _key->start;
+                key.len = _key->end - _key->start;
 
                 /* skip Key token */
                 offset += 1;
@@ -247,8 +247,8 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
                 if (_key->size > 0) {
                     const struct jsmntok *_value = tok + 1 + offset;
 
-                    value.start = _value->start;
-                    value.end = _value->end;
+                    value.pos = _value->start;
+                    value.len = _value->end - _value->start;
 
                     chash_assign(curr, key, value, _JSMNF_TABLE);
                     (void)chash_lookup_bucket(curr, key, found, _JSMNF_TABLE);
@@ -273,8 +273,8 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
                 struct jsmnf_pair *pair = curr->buckets + curr->length;
                 struct jsmnftok value;
 
-                value.start = _value->start;
-                value.end = _value->end;
+                value.pos = _value->start;
+                value.len = _value->end - _value->start;
 
                 ret = _jsmnf_load_pairs(loader, js, pair, _value,
                                         num_tokens - offset, pairs, num_pairs);
@@ -286,8 +286,8 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
                 pair->value = value;
                 pair->state = CHASH_FILLED;
                 /* unused for array elements */
-                pair->key.start = 0;
-                pair->key.end = 0;
+                pair->key.pos = 0;
+                pair->key.len = 0;
             }
         }
         break;
@@ -324,8 +324,8 @@ jsmnf_load(struct jsmnf_loader *loader,
         for (; i < num_pairs; ++i)
             pairs[i] = blank_pair;
         /* root */
-        pairs[0].value.start = tokens->start;
-        pairs[0].value.end = tokens->end;
+        pairs[0].value.pos = tokens->start;
+        pairs[0].value.len = tokens->end - tokens->start;
 
         ++loader->pairnext;
     }
@@ -356,8 +356,8 @@ jsmnf_find(const struct jsmnf_pair *head,
         struct jsmnftok _key;
         int contains;
 
-        _key.start = 0;
-        _key.end = length;
+        _key.pos = 0;
+        _key.len = length;
 
         contains = chash_contains(head, _key, contains, _JSMNF_TABLE);
         if (contains) {
