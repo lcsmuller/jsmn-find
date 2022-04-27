@@ -19,18 +19,18 @@ struct jsmnftok {
 
 /** @brief JSON object */
 typedef struct jsmnf_pair {
-    /** amount of children currently filled in */
-    int length;
-    /** children threshold capacity */
-    int capacity;
-    /** this pair's children */
-    struct jsmnf_pair *buckets;
     /** JSON type @see `jsmntype_t` at jsmn.h */
     jsmntype_t type;
+    /** amount of children currently filled in */
+    int size;
+    /** children threshold capacity */
+    int capacity;
+    /** this pair's fields */
+    struct jsmnf_pair *fields;
     /** the key of the pair */
-    struct jsmnftok key;
+    struct jsmnftok k;
     /** the value of the pair */
-    struct jsmnftok value;
+    struct jsmnftok v;
     /** current state of this pair */
     int state;
 } jsmnf_pair;
@@ -161,6 +161,16 @@ JSMN_API long jsmnf_unescape(char buf[],
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* key */
+#define CHASH_KEY_FIELD k
+/* value */
+#define CHASH_VALUE_FIELD v
+/* fields */
+#define CHASH_BUCKETS_FIELD fields
+/* members count */
+#define CHASH_LENGTH_FIELD size
+
 #include "chash.h"
 
 #define _jsmnf_key_hash(key, hash)                                            \
@@ -231,7 +241,7 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
                                _JSMNF_TABLE);
 
         if (JSMN_OBJECT == tok->type) {
-            while (curr->length < tok->size) {
+            while (curr->size < tok->size) {
                 const struct jsmntok *_key = tok + 1 + offset;
                 struct jsmnf_pair *found = NULL;
                 struct jsmnftok key, value = { 0 };
@@ -268,9 +278,9 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
             break;
         }
         if (JSMN_ARRAY == tok->type) {
-            for (; curr->length < tok->size; ++curr->length) {
+            for (; curr->size < tok->size; ++curr->size) {
                 const struct jsmntok *_value = tok + 1 + offset;
-                struct jsmnf_pair *pair = curr->buckets + curr->length;
+                struct jsmnf_pair *pair = curr->fields + curr->size;
                 struct jsmnftok value;
 
                 value.pos = _value->start;
@@ -283,11 +293,11 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
                 offset += ret;
 
                 /* assign array element */
-                pair->value = value;
+                pair->v = value;
                 pair->state = CHASH_FILLED;
                 /* unused for array elements */
-                pair->key.pos = 0;
-                pair->key.len = 0;
+                pair->k.pos = 0;
+                pair->k.len = 0;
             }
         }
         break;
@@ -324,8 +334,8 @@ jsmnf_load(struct jsmnf_loader *loader,
         for (; i < num_pairs; ++i)
             pairs[i] = blank_pair;
         /* root */
-        pairs[0].value.pos = tokens->start;
-        pairs[0].value.len = tokens->end - tokens->start;
+        pairs[0].v.pos = tokens->start;
+        pairs[0].v.len = tokens->end - tokens->start;
 
         ++loader->pairnext;
     }
@@ -367,7 +377,7 @@ jsmnf_find(const struct jsmnf_pair *head,
     else if (JSMN_ARRAY == head->type) {
         char *endptr;
         int idx = (int)strtol(key, &endptr, 10);
-        if (endptr != key && idx < head->length) found = head->buckets + idx;
+        if (endptr != key && idx < head->size) found = head->fields + idx;
     }
     return found;
 }

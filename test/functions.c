@@ -53,8 +53,8 @@ check_load_dynamic_pairs(void)
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, js_small, "foo", 3));
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js_small, "0", 1));
-    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.len);
-    ASSERT_STRN_EQ("true", js_small + f->value.pos, f->value.len);
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->k.len);
+    ASSERT_STRN_EQ("true", js_small + f->v.pos, f->v.len);
 
     jsmn_init(&parser);
     jsmnf_init(&loader);
@@ -68,14 +68,14 @@ check_load_dynamic_pairs(void)
                0);
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, js_large, "foo", 3));
-    ASSERT_STRN_EQ("foo", js_large + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("foo", js_large + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js_large, "bar", 3));
-    ASSERT_STRN_EQ("bar", js_large + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("bar", js_large + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js_large, "baz", 3));
-    ASSERT_STRN_EQ("baz", js_large + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("baz", js_large + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js_large, "0", 1));
-    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.len);
-    ASSERT_STRN_EQ("true", js_large + f->value.pos, f->value.len);
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->k.len);
+    ASSERT_STRN_EQ("true", js_large + f->v.pos, f->v.len);
 
     free(pairs);
 
@@ -109,8 +109,8 @@ check_load_dynamic_pairs_and_tokens(void)
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, js_small, "foo", 3));
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js_small, "0", 1));
-    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.len);
-    ASSERT_STRN_EQ("true", js_small + f->value.pos, f->value.len);
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->k.len);
+    ASSERT_STRN_EQ("true", js_small + f->v.pos, f->v.len);
 
     jsmn_init(&parser);
     jsmnf_init(&loader);
@@ -125,14 +125,14 @@ check_load_dynamic_pairs_and_tokens(void)
                0);
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, js_large, "foo", 3));
-    ASSERT_STRN_EQ("foo", js_large + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("foo", js_large + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js_large, "bar", 3));
-    ASSERT_STRN_EQ("bar", js_large + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("bar", js_large + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js_large, "baz", 3));
-    ASSERT_STRN_EQ("baz", js_large + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("baz", js_large + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js_large, "0", 1));
-    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.len);
-    ASSERT_STRN_EQ("true", js_large + f->value.pos, f->value.len);
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->k.len);
+    ASSERT_STRN_EQ("true", js_large + f->v.pos, f->v.len);
 
     free(toks);
     free(pairs);
@@ -231,14 +231,14 @@ check_load_not_enough_pairs_for_tokens(void)
 
     /* check if searching still works */
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, js, "foo", 3));
-    ASSERT_STRN_EQ("foo", js + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("foo", js + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js, "bar", 3));
-    ASSERT_STRN_EQ("bar", js + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("bar", js + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js, "baz", 3));
-    ASSERT_STRN_EQ("baz", js + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("baz", js + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js, "0", 1));
-    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.len);
-    ASSERT_STRN_EQ("true", js + f->value.pos, f->value.len);
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->k.len);
+    ASSERT_STRN_EQ("true", js + f->v.pos, f->v.len);
 
     PASS();
 }
@@ -292,13 +292,13 @@ check_load_array(void)
                                 sizeof(pairs) / sizeof *pairs),
                0);
 
-    ASSERT_EQ(2, pairs->length);
-    f = &pairs->buckets[1];
-    ASSERT_EQ(3, f->length);
-    f = &f->buckets[2];
-    ASSERT_EQ(4, f->length);
-    f = &f->buckets[3];
-    ASSERT_EQ(1, f->length);
+    ASSERT_EQ(2, pairs->size);
+    f = &pairs->fields[1];
+    ASSERT_EQ(3, f->size);
+    f = &f->fields[2];
+    ASSERT_EQ(4, f->size);
+    f = &f->fields[3];
+    ASSERT_EQ(1, f->size);
 
     PASS();
 }
@@ -328,14 +328,14 @@ check_find_nested(void)
                sizeof(pairs) / sizeof *pairs);
 
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, js, "foo", 3));
-    ASSERT_STRN_EQ("foo", js + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("foo", js + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js, "bar", 3));
-    ASSERT_STRN_EQ("bar", js + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("bar", js + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js, "baz", 3));
-    ASSERT_STRN_EQ("baz", js + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ("baz", js + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js, "0", 1));
-    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.len);
-    ASSERT_STRN_EQ("true", js + f->value.pos, f->value.len);
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->k.len);
+    ASSERT_STRN_EQ("true", js + f->v.pos, f->v.len);
 
     PASS();
 }
@@ -358,30 +358,30 @@ check_find_array(void)
                sizeof(pairs) / sizeof *pairs);
 
     /* test direct search */
-    f = &pairs->buckets[0];
-    ASSERT_STRN_EQ("1", js + f->value.pos, f->value.len);
-    f = &pairs->buckets[1];
-    ASSERT_STRN_EQ("1", js + f->buckets[0].value.pos, f->buckets[0].value.len);
-    ASSERT_STRN_EQ("2", js + f->buckets[1].value.pos, f->buckets[1].value.len);
-    f = &f->buckets[2];
-    ASSERT_STRN_EQ("1", js + f->buckets[0].value.pos, f->buckets[0].value.len);
-    ASSERT_STRN_EQ("2", js + f->buckets[1].value.pos, f->buckets[1].value.len);
-    ASSERT_STRN_EQ("3", js + f->buckets[2].value.pos, f->buckets[2].value.len);
-    f = &f->buckets[3];
-    ASSERT_STRN_EQ("[true]", js + f->value.pos, f->value.len);
+    f = &pairs->fields[0];
+    ASSERT_STRN_EQ("1", js + f->v.pos, f->v.len);
+    f = &pairs->fields[1];
+    ASSERT_STRN_EQ("1", js + f->fields[0].v.pos, f->fields[0].v.len);
+    ASSERT_STRN_EQ("2", js + f->fields[1].v.pos, f->fields[1].v.len);
+    f = &f->fields[2];
+    ASSERT_STRN_EQ("1", js + f->fields[0].v.pos, f->fields[0].v.len);
+    ASSERT_STRN_EQ("2", js + f->fields[1].v.pos, f->fields[1].v.len);
+    ASSERT_STRN_EQ("3", js + f->fields[2].v.pos, f->fields[2].v.len);
+    f = &f->fields[3];
+    ASSERT_STRN_EQ("[true]", js + f->v.pos, f->v.len);
 
     /* test key search */
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, js, "0", 1));
-    ASSERT_STRN_EQ("1", js + f->value.pos, f->value.len);
+    ASSERT_STRN_EQ("1", js + f->v.pos, f->v.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(pairs, js, "1", 1));
-    ASSERT_STRN_EQ("1", js + f->buckets[0].value.pos, f->buckets[0].value.len);
-    ASSERT_STRN_EQ("2", js + f->buckets[1].value.pos, f->buckets[1].value.len);
+    ASSERT_STRN_EQ("1", js + f->fields[0].v.pos, f->fields[0].v.len);
+    ASSERT_STRN_EQ("2", js + f->fields[1].v.pos, f->fields[1].v.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js, "2", 1));
-    ASSERT_STRN_EQ("1", js + f->buckets[0].value.pos, f->buckets[0].value.len);
-    ASSERT_STRN_EQ("2", js + f->buckets[1].value.pos, f->buckets[1].value.len);
-    ASSERT_STRN_EQ("3", js + f->buckets[2].value.pos, f->buckets[2].value.len);
+    ASSERT_STRN_EQ("1", js + f->fields[0].v.pos, f->fields[0].v.len);
+    ASSERT_STRN_EQ("2", js + f->fields[1].v.pos, f->fields[1].v.len);
+    ASSERT_STRN_EQ("3", js + f->fields[2].v.pos, f->fields[2].v.len);
     ASSERT_NEQ(NULL, f = jsmnf_find(f, js, "3", 1));
-    ASSERT_STRN_EQ("[true]", js + f->value.pos, f->value.len);
+    ASSERT_STRN_EQ("[true]", js + f->v.pos, f->v.len);
 
     PASS();
 }
@@ -406,14 +406,14 @@ check_find_string_elements_in_array(void)
     ASSERT_NEQ(NULL, f1 = jsmnf_find(pairs, js, "modules", 7));
 
     /* test direct search */
-    f2 = &f1->buckets[0];
-    ASSERT_STRN_EQ("foo", js + f2->value.pos, f2->value.len);
-    f2 = &f1->buckets[1];
-    ASSERT_STRN_EQ("bar", js + f2->value.pos, f2->value.len);
-    f2 = &f1->buckets[2];
-    ASSERT_STRN_EQ("baz", js + f2->value.pos, f2->value.len);
-    f2 = &f1->buckets[3];
-    ASSERT_STRN_EQ("tuna", js + f2->value.pos, f2->value.len);
+    f2 = &f1->fields[0];
+    ASSERT_STRN_EQ("foo", js + f2->v.pos, f2->v.len);
+    f2 = &f1->fields[1];
+    ASSERT_STRN_EQ("bar", js + f2->v.pos, f2->v.len);
+    f2 = &f1->fields[2];
+    ASSERT_STRN_EQ("baz", js + f2->v.pos, f2->v.len);
+    f2 = &f1->fields[3];
+    ASSERT_STRN_EQ("tuna", js + f2->v.pos, f2->v.len);
 
     PASS();
 }
@@ -444,14 +444,14 @@ check_find_path_nested(void)
                sizeof(pairs) / sizeof *pairs);
 
     ASSERT_NEQ(NULL, f = jsmnf_find_path(pairs, js, path, 1));
-    ASSERT_STRN_EQ(path[0], js + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ(path[0], js + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find_path(pairs, js, path, 2));
-    ASSERT_STRN_EQ(path[1], js + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ(path[1], js + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find_path(pairs, js, path, 3));
-    ASSERT_STRN_EQ(path[2], js + f->key.pos, f->key.len);
+    ASSERT_STRN_EQ(path[2], js + f->k.pos, f->k.len);
     ASSERT_NEQ(NULL, f = jsmnf_find_path(pairs, js, path, 4));
-    ASSERT_EQm("Array elements shouldn't have a key", 0, f->key.len);
-    ASSERT_STRN_EQ("true", js + f->value.pos, f->value.len);
+    ASSERT_EQm("Array elements shouldn't have a key", 0, f->k.len);
+    ASSERT_STRN_EQ("true", js + f->v.pos, f->v.len);
 
     PASS();
 }
