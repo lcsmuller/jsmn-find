@@ -133,7 +133,7 @@ int main(void) {
 .br
     // Found: { "bar" : [ 1, 2, 3 ] }
 .br
-    printf("Found: %.*s\\n", f->value.end - f->value.start, json + f->value.start);
+    printf("Found: %.*s\\n", f->v.len, json + f->v.pos);
 .br
 
     ...
@@ -147,7 +147,7 @@ int main(void) {
 
     // Found: true
 .br
-    printf("Found: %.*s\\n", f->value.end - f->value.start, json + f->value.start);
+    printf("Found: %.*s\\n", f->v.len, json + f->v.pos);
 .br
 }
 .br
