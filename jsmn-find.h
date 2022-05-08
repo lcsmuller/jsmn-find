@@ -299,8 +299,8 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
                 pair->k.pos = 0;
                 pair->k.len = 0;
             }
+            break;
         }
-        break;
     }
     /* fall-through */
     case JSMN_UNDEFINED:
