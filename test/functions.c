@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <assert.h>
 
 #define JSMN_STRICT
 #include "jsmn_1.1.0.h"
@@ -386,13 +385,13 @@ check_find_array(void)
     PASS();
 }
 
-#define OBJ1 "{ \"id\": 1, \"nest\": { \"id\": 2 }}"
-#define OBJ2 "{ \"id\": 3, \"nest\": { \"id\": 4 }}"
-#define OBJ3 "{ \"id\": 5, \"nest\": { \"id\": 6 }}"
+#define OBJ1_NEST "{ \"username\": null, \"avatar\": null, \"avatar_decoration\": null, \"bar\": null, \"foo\": 1 }"
+#define OBJ1 "{ \"foo\": " OBJ1_NEST " }"
+#define OBJ2 "{ \"foo\": null }"
 TEST
 check_iterate_over_object_elements_in_array(void)
 {
-    const char js[] = "[" OBJ1 "," OBJ2 "," OBJ3 "]";
+    const char js[] = "[ " OBJ1 " , " OBJ2 " ]";
     jsmn_parser parser;
     jsmntok_t toks[128];
     jsmnf_loader loader;
@@ -408,33 +407,22 @@ check_iterate_over_object_elements_in_array(void)
 
     f1 = &pairs->fields[0];
     ASSERT_STRN_EQ(OBJ1, js + f1->v.pos, f1->v.len);
-    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "id", 2));
-    ASSERT_STRN_EQ("1", js + f2->v.pos, f2->v.len);
-    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "nest", 4));
-    ASSERT_NEQ(NULL, f2 = jsmnf_find(f2, js, "id", 2));
-    ASSERT_STRN_EQ("2", js + f2->v.pos, f2->v.len);
+    ASSERT_NEQ(NULL, f1 = jsmnf_find(f1, js, "foo", 3));
+    ASSERT_STRN_EQ(OBJ1_NEST, js + f1->v.pos, f1->v.len);
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "bar", 3));
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "avatar", 6));
+    ASSERT_STRN_EQ("null", js + f2->v.pos, f2->v.len);
 
     f1 = &pairs->fields[1];
     ASSERT_STRN_EQ(OBJ2, js + f1->v.pos, f1->v.len);
-    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "id", 2));
-    ASSERT_STRN_EQ("3", js + f2->v.pos, f2->v.len);
-    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "nest", 4));
-    ASSERT_NEQ(NULL, f2 = jsmnf_find(f2, js, "id", 2));
-    ASSERT_STRN_EQ("4", js + f2->v.pos, f2->v.len);
-
-    f1 = &pairs->fields[2];
-    ASSERT_STRN_EQ(OBJ3, js + f1->v.pos, f1->v.len);
-    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "id", 2));
-    ASSERT_STRN_EQ("5", js + f2->v.pos, f2->v.len);
-    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "nest", 4));
-    ASSERT_NEQ(NULL, f2 = jsmnf_find(f2, js, "id", 2));
-    ASSERT_STRN_EQ("6", js + f2->v.pos, f2->v.len);
+    ASSERT_NEQ(NULL, f1 = jsmnf_find(f1, js, "foo", 3));
+    ASSERT_STRN_EQ("null", js + f1->v.pos, f1->v.len);
 
     PASS();
 }
+#undef OBJ1_NEST
 #undef OBJ1
 #undef OBJ2
-#undef OBJ3
 
 TEST
 check_find_string_elements_in_array(void)

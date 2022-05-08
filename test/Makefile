@@ -1,20 +1,24 @@
 TOP = ..
 CC ?= gcc
 
-PARSING_DIR   := test_parsing
-TRANSFORM_DIR := test_transform
+JSMN_FIND = $(TOP)/jsmn-find.h
 
-EXE_PARSER := parser
-EXE_FUNCTIONS := functions
+PARSING_DIR   = test_parsing
+TRANSFORM_DIR = test_transform
 
-EXES := $(EXE_PARSER) $(EXE_FUNCTIONS)
+EXE_PARSER    = parser
+EXE_FUNCTIONS = functions
+
+EXES = $(EXE_PARSER) $(EXE_FUNCTIONS)
 
 CFLAGS += -Wall -Wextra -Wpedantic -std=c89 -g -I. -I$(TOP)
 
 all: $(EXES)
 
-$(EXES): %: %.c
-	$(CC) $(CFLAGS) $(XFLAGS) -o $@ $^
+$(EXES): %: %.c $(JSMN_FIND)
+	$(CC) $(CFLAGS) $(XFLAGS) -o $@ $<
+
+$(JSMN_FIND): ;
 
 test: test_parse test_transform test_functions
 
