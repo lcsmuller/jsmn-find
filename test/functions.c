@@ -386,6 +386,56 @@ check_find_array(void)
     PASS();
 }
 
+#define OBJ1 "{ \"id\": 1, \"nest\": { \"id\": 2 }}"
+#define OBJ2 "{ \"id\": 3, \"nest\": { \"id\": 4 }}"
+#define OBJ3 "{ \"id\": 5, \"nest\": { \"id\": 6 }}"
+TEST
+check_iterate_over_object_elements_in_array(void)
+{
+    const char js[] = "[" OBJ1 "," OBJ2 "," OBJ3 "]";
+    jsmn_parser parser;
+    jsmntok_t toks[128];
+    jsmnf_loader loader;
+    jsmnf_pair pairs[128], *f1, *f2;
+
+    jsmn_init(&parser);
+    jsmnf_init(&loader);
+
+    jsmn_parse(&parser, js, sizeof(js) - 1, toks, sizeof(toks) / sizeof *toks);
+
+    jsmnf_load(&loader, js, toks, parser.toknext, pairs,
+               sizeof(pairs) / sizeof *pairs);
+
+    f1 = &pairs->fields[0];
+    ASSERT_STRN_EQ(OBJ1, js + f1->v.pos, f1->v.len);
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "id", 2));
+    ASSERT_STRN_EQ("1", js + f2->v.pos, f2->v.len);
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "nest", 4));
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f2, js, "id", 2));
+    ASSERT_STRN_EQ("2", js + f2->v.pos, f2->v.len);
+
+    f1 = &pairs->fields[1];
+    ASSERT_STRN_EQ(OBJ2, js + f1->v.pos, f1->v.len);
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "id", 2));
+    ASSERT_STRN_EQ("3", js + f2->v.pos, f2->v.len);
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "nest", 4));
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f2, js, "id", 2));
+    ASSERT_STRN_EQ("4", js + f2->v.pos, f2->v.len);
+
+    f1 = &pairs->fields[2];
+    ASSERT_STRN_EQ(OBJ3, js + f1->v.pos, f1->v.len);
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "id", 2));
+    ASSERT_STRN_EQ("5", js + f2->v.pos, f2->v.len);
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f1, js, "nest", 4));
+    ASSERT_NEQ(NULL, f2 = jsmnf_find(f2, js, "id", 2));
+    ASSERT_STRN_EQ("6", js + f2->v.pos, f2->v.len);
+
+    PASS();
+}
+#undef OBJ1
+#undef OBJ2
+#undef OBJ3
+
 TEST
 check_find_string_elements_in_array(void)
 {
@@ -423,6 +473,7 @@ SUITE(fn__jsmnf_find)
     RUN_TEST(check_find_nested);
     RUN_TEST(check_find_array);
     RUN_TEST(check_find_string_elements_in_array);
+    RUN_TEST(check_iterate_over_object_elements_in_array);
 }
 
 TEST
