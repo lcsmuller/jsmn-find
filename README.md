@@ -23,7 +23,7 @@ searched for in linear time.
 Download `jsmn-find.h` and the [dependencies](#dependencies) should be visible 
 to your linker search path:
 
-#### load
+#### load (zero-allocation)
 ```c
 #include "jsmn.h"
 #include "jsmn-find.h"
