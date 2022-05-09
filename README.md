@@ -33,7 +33,6 @@ jsmn_parser parser;
 jsmntok_t tokens[256];
 
 jsmn_init(&parser);
-
 r = jsmn_parse(&parser, json, strlen(json), tokens, 256);
 if (r < 0) error();
 
@@ -44,6 +43,30 @@ jsmnf_pairs pairs[256];
 jsmnf_init(&loader);
 r = jsmnf_load(&loader, json, tokens, parser.toknext, pairs, 256);
 if (r < 0) error();
+```
+
+`auto load (automatically allocate necessary memory for jsmn tokens and jsmnf pairs)`
+```c
+#include "jsmn.h"
+#include "jsmn-find.h"
+
+...
+jsmn_parser parser;
+jsmntok_t *toks = NULL;
+unsigned num_tokens = 0;
+
+jsmn_init(&parser);
+r = jsmn_parse_auto(&parser, json, strlen(json), &toks, &num_toks);
+if (r <= 0) error();
+
+// populate jsmnf_pairs with the jsmn tokens
+jsmnf_loader loader;
+jsmnf_pair *pairs = NULL;
+unsigned num_pairs = 0;
+
+jsmnf_init(&loader);
+r = jsmnf_load_auto(&parser, json, toks, num_toks, &pairs, &num_pairs);
+if (r <= 0) error();
 ```
 
 `find (key search for objects and arrays)`
