@@ -23,7 +23,7 @@ searched for in linear time.
 Download `jsmn-find.h` and the [dependencies](#dependencies) should be visible 
 to your linker search path:
 
-`load`
+#### load
 ```c
 #include "jsmn.h"
 #include "jsmn-find.h"
@@ -45,7 +45,7 @@ r = jsmnf_load(&loader, json, tokens, parser.toknext, pairs, 256);
 if (r < 0) error();
 ```
 
-`auto load (automatically allocate necessary memory for jsmn tokens and jsmnf pairs)`
+#### auto load (allocate memory for jsmn tokens and jsmnf pairs as necessary)
 ```c
 #include "jsmn.h"
 #include "jsmn-find.h"
@@ -67,9 +67,13 @@ unsigned num_pairs = 0;
 jsmnf_init(&loader);
 r = jsmnf_load_auto(&parser, json, toks, num_toks, &pairs, &num_pairs);
 if (r <= 0) error();
+
+...
+free(toks);
+free(pairs);
 ```
 
-`find (key search for objects and arrays)`
+#### find (key search for objects and arrays)
 ```c
 jsmnf_pair *f;
 
@@ -88,7 +92,7 @@ if ((f = jsmnf_find(pairs, json, "foo", strlen("foo")))) {
 }
 ```
 
-`find (index search arrays)`
+#### find (index search for arrays)
 ```c
 jsmnf_pair *f;
 
@@ -101,7 +105,7 @@ f = &f->buckets[0];
 printf("Found: %.*s\n", f->v.len, json + f->v.pos);
 ```
 
-`find path (key search for objects and arrays)`
+#### find path (key search for objects and arrays)
 ```c
 char *path[] = { "2", "1", "0", "b" };
 jsmnf_pair *f;
