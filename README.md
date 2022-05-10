@@ -111,7 +111,7 @@ char *path[] = { "2", "1", "0", "b" };
 jsmnf_pair *f;
 
 // assume the JSON : [ 1, 2, [ 1, [ { "b":true } ] ] ]
-if ((f = jsmnf_find_path(pairs, path, sizeof(path) / sizeof *path))) {
+if ((f = jsmnf_find_path(pairs, json, path, sizeof(path) / sizeof *path))) {
     // Found: true
     printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
 }
