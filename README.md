@@ -56,7 +56,7 @@ jsmntok_t *toks = NULL;
 unsigned num_tokens = 0;
 
 jsmn_init(&parser);
-r = jsmn_parse_auto(&parser, json, strlen(json), &toks, &num_toks);
+r = jsmn_parse_auto(&parser, json, strlen(json), &toks, &num_tokens);
 if (r <= 0) error();
 
 // populate jsmnf_pairs with the jsmn tokens
@@ -65,7 +65,7 @@ jsmnf_pair *pairs = NULL;
 unsigned num_pairs = 0;
 
 jsmnf_init(&loader);
-r = jsmnf_load_auto(&parser, json, toks, num_toks, &pairs, &num_pairs);
+r = jsmnf_load_auto(&loader, json, toks, num_tokens, &pairs, &num_pairs);
 if (r <= 0) error();
 
 ...
