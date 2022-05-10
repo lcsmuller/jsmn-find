@@ -56,7 +56,7 @@ jsmntok_t *toks = NULL;
 unsigned num_tokens = 0;
 
 jsmn_init(&parser);
-r = jsmn_parse_auto(&parser, json, strlen(json), &toks, &num_toks);
+r = jsmn_parse_auto(&parser, json, strlen(json), &toks, &num_tokens);
 if (r <= 0) error();
 
 // populate jsmnf_pairs with the jsmn tokens
@@ -65,7 +65,7 @@ jsmnf_pair *pairs = NULL;
 unsigned num_pairs = 0;
 
 jsmnf_init(&loader);
-r = jsmnf_load_auto(&parser, json, toks, num_toks, &pairs, &num_pairs);
+r = jsmnf_load_auto(&loader, json, toks, num_tokens, &pairs, &num_pairs);
 if (r <= 0) error();
 
 ...
@@ -80,13 +80,13 @@ jsmnf_pair *f;
 // assume the JSON : { "foo": { "bar": [ true, null, null ] } }
 if ((f = jsmnf_find(pairs, json, "foo", strlen("foo")))) {
     // Found: { "bar" : [ true, null, null ] }
-    printf("Found: %.*s\n", f->v.len, json + f->v.pos);
+    printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
     if ((f = jsmnf_find(f, json, "bar", 3))) {
         // Found: [ true, null, null ]
-        printf("Found: %.*s\n", f->v.len, json + f->v.pos);
+        printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
         if ((f = jsmn_find(f, json, "0", 1))) {
             // Found: true
-            printf("Found: %.*s\n", f->v.len, json + f->v.pos);
+            printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
         }
     }
 }
@@ -99,10 +99,10 @@ jsmnf_pair *f;
 // assume the JSON : [ null, [ true, null, null ] ]
 f = &pairs->buckets[1];
 // Found: [ true, null, null ]
-printf("Found: %.*s\n", f->v.len, json + f->v.pos);
+printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
 f = &f->buckets[0];
 // Found: true
-printf("Found: %.*s\n", f->v.len, json + f->v.pos);
+printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
 ```
 
 #### find path (key search for objects and arrays)
@@ -111,9 +111,9 @@ char *path[] = { "2", "1", "0", "b" };
 jsmnf_pair *f;
 
 // assume the JSON : [ 1, 2, [ 1, [ { "b":true } ] ] ]
-if ((f = jsmnf_find_path(pairs, path, sizeof(path) / sizeof *path))) {
+if ((f = jsmnf_find_path(pairs, json, path, sizeof(path) / sizeof *path))) {
     // Found: true
-    printf("Found: %.*s\n", f->v.len, json + f->v.pos);
+    printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
 }
 ```
 
