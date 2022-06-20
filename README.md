@@ -1,8 +1,8 @@
 # JSMN-FIND
 
-jsmn-find is a ANSI C add-on for the minimalistic JSON tokenizer
+jsmn-find is an ANSI C add-on for the minimalistic JSON tokenizer
 [jsmn](https://github.com/zserge/jsmn), it offers a familiar and
-zero-allocation design. Its serializer counterpart counterpart can be found
+zero-allocation design. Its serializer counterpart can be found
 at [json-build](https://github.com/lcsmuller/json-build).
 
 ## Dependencies
@@ -11,7 +11,7 @@ at [json-build](https://github.com/lcsmuller/json-build).
 
 ## Included Dependencies
 
-* chash - Type-safe, stackful hashtable made by [antropez](https://github.com/antropez)
+* [chash](https://github.com/c-ware/chash) - Type-safe, stackful hashtable
 
 ## Design
 
