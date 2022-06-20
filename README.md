@@ -38,7 +38,7 @@ if (r < 0) error();
 
 // populate jsmnf_pairs with the jsmn tokens
 jsmnf_loader loader;
-jsmnf_pairs pairs[256];
+jsmnf_pair pairs[256];
 
 jsmnf_init(&loader);
 r = jsmnf_load(&loader, json, tokens, parser.toknext, pairs, 256);
