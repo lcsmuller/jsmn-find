@@ -22,6 +22,6 @@ test_transform: $(EXE_PARSER) $(TRANSFORM_DIR)
 	./$< -e -s json_transform -- $(TRANSFORM_DIR)/*
 
 clean:
-	$(RM) $(EXES)
+	rm -f $(EXES)
 
 .PHONY : all clean
