@@ -97,14 +97,14 @@ if ((f = jsmnf_find(pairs, json, "foo", strlen("foo")))) {
 jsmnf_pair *f;
 
 // assume the JSON : [ false, [ true ] ]
-f = &pairs->buckets[1];
+f = &pairs->fields[1];
 printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos); // Found: [ true ]
-f = &f->buckets[0]; // get nested array
+f = &f->fields[0]; // get nested array
 printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos); // Found: true
 
 // looping over array
 for (int i = 0; pairs->size; ++i) {
-    f = &pairs->buckets[i];
+    f = &pairs->fields[i];
     printf("%.*s ", (int)f->v.len, json + f->v.pos);
 }
 ```
