@@ -15,7 +15,7 @@ at [json-build](https://github.com/lcsmuller/json-build).
 
 ## Design
 
-jsmn-find organizes jsmn's JSON tokens under a hashtable, so that they can be
+jsmn-find organizes jsmn's JSON tokens under a hashtable so that they can be
 searched for in linear time.
 
 ## Usage
@@ -73,7 +73,7 @@ free(toks);
 free(pairs);
 ```
 
-#### find (key search for objects and arrays)
+#### find by key
 ```c
 jsmnf_pair *f;
 
@@ -92,25 +92,29 @@ if ((f = jsmnf_find(pairs, json, "foo", strlen("foo")))) {
 }
 ```
 
-#### find (index search for arrays)
+#### index access for arrays
 ```c
 jsmnf_pair *f;
 
-// assume the JSON : [ null, [ true, null, null ] ]
+// assume the JSON : [ false, [ true ] ]
 f = &pairs->buckets[1];
-// Found: [ true, null, null ]
-printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
-f = &f->buckets[0];
-// Found: true
-printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
+printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos); // Found: [ true ]
+f = &f->buckets[0]; // get nested array
+printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos); // Found: true
+
+// looping over array
+for (int i = 0; pairs->size; ++i) {
+    f = &pairs->buckets[i];
+    printf("%.*s ", (int)f->v.len, json + f->v.pos);
+}
 ```
 
-#### find path (key search for objects and arrays)
+#### find by path
 ```c
-char *path[] = { "2", "1", "0", "b" };
+// assume the JSON : [ false, false, [ false, [ { "b":true } ] ] ]
+char *path[] = { "2", "1", "0", "b" }; // array keys are the same as its indexes
 jsmnf_pair *f;
 
-// assume the JSON : [ 1, 2, [ 1, [ { "b":true } ] ] ]
 if ((f = jsmnf_find_path(pairs, json, path, sizeof(path) / sizeof *path))) {
     // Found: true
     printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
