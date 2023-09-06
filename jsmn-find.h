@@ -407,9 +407,9 @@ jsmnf_find_path(const struct jsmnf_pair *head,
         const unsigned new_size = *(prev_size)*2;                             \
         void *tmp = realloc((ptr), new_size * sizeof *(ptr));                 \
         if (!tmp) return JSMN_ERROR_NOMEM;                                    \
-        memset((tmp) + *(prev_size), 0,                                       \
-               (new_size - *(prev_size)) * sizeof *(ptr));                    \
         (ptr) = tmp;                                                          \
+        memset((ptr) + *(prev_size), 0,                                       \
+               (new_size - *(prev_size)) * sizeof *(ptr));                    \
         *(prev_size) = new_size;                                              \
     } while (0)
 

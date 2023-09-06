@@ -28,6 +28,32 @@ print_jsmnerr(enum jsmnerr code)
 }
 
 TEST
+check_not_corrupted(void)
+{
+    const char json[] =
+        "{\"status\":\"enabled\",\"timestamp\":\"2023-08-24T07:59:03Z\"}\n";
+    jsmn_parser parser;
+    jsmntok_t *toks = NULL;
+    unsigned num_tokens = 0;
+    long ret;
+
+    jsmn_init(&parser);
+
+    ret = jsmn_parse_auto(&parser, json, strlen(json), &toks, &num_tokens);
+    ASSERT_GTm(print_jsmnerr(ret),
+               ret = jsmn_parse_auto(&parser, json, sizeof(json) - 1, &toks,
+                                     &num_tokens),
+               0);
+
+    PASS();
+}
+
+SUITE(fn__jsmn_load_auto)
+{
+    RUN_TEST(check_not_corrupted);
+}
+
+TEST
 check_load_dynamic_pairs(void)
 {
     const char js_small[] = "{\"foo\":[true]}";
@@ -385,7 +411,9 @@ check_find_array(void)
     PASS();
 }
 
-#define OBJ1_NEST "{ \"username\": null, \"avatar\": null, \"avatar_decoration\": null, \"bar\": null, \"foo\": 1 }"
+#define OBJ1_NEST                                                             \
+    "{ \"username\": null, \"avatar\": null, \"avatar_decoration\": null, "   \
+    "\"bar\": null, \"foo\": 1 }"
 #define OBJ1 "{ \"foo\": " OBJ1_NEST " }"
 #define OBJ2 "{ \"foo\": null }"
 TEST
