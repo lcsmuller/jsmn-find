@@ -317,13 +317,13 @@ check_load_array(void)
                                 sizeof(pairs) / sizeof *pairs),
                0);
 
-    ASSERT_EQ(2, pairs->size);
+    ASSERT_EQ(2, pairs->length);
     f = &pairs->fields[1];
-    ASSERT_EQ(3, f->size);
+    ASSERT_EQ(3, f->length);
     f = &f->fields[2];
-    ASSERT_EQ(4, f->size);
+    ASSERT_EQ(4, f->length);
     f = &f->fields[3];
-    ASSERT_EQ(1, f->size);
+    ASSERT_EQ(1, f->length);
 
     PASS();
 }

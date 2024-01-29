@@ -21,17 +21,15 @@ typedef struct jsmnf_pair {
     /** JSON type @see `jsmntype_t` at jsmn.h */
     jsmntype_t type;
     /** amount of children currently filled in */
-    int size;
+    size_t length;
     /** children threshold capacity */
-    int capacity;
+    size_t capacity;
     /** this pair's fields */
     struct jsmnf_pair *fields;
     /** the key of the pair */
     struct jsmnftok k;
     /** the value of the pair */
     struct jsmnftok v;
-    /** current state of this pair */
-    int state;
 } jsmnf_pair;
 
 /** @brief Bucket (@ref jsmnf_pair) loader, keeps track of pair array
@@ -161,51 +159,58 @@ JSMN_API long jsmnf_unescape(char buf[],
 #include <stdlib.h>
 #include <string.h>
 
+/* hashtable */
+#define TABLEC_SYMBOL_HT struct jsmnf_pair
+/* buckets/fields */
+#define TABLEC_SYMBOL_BUCKET struct jsmnf_pair
 /* key */
-#define CHASH_KEY_FIELD     k
+#define TABLEC_SYMBOL_KEY k
 /* value */
-#define CHASH_VALUE_FIELD   v
-/* fields */
-#define CHASH_BUCKETS_FIELD fields
-/* members count */
-#define CHASH_LENGTH_FIELD  size
+#define TABLEC_SYMBOL_VALUE v
+/* bucket name */
+#define TABLEC_SYMBOL_BUCKETS fields
 
-#include "chash.h"
+#define TABLEC_SYMBOL_CHECK_NULL(key) key.pos == 0
+#define TABLEC_SYMBOL_ASSIGN(dst, src)                   \
+    if (src == NULL) {                                   \
+        (dst)->pos = 0;                                  \
+        (dst)->len = 0;                                  \
+    }                                                    \
+    else {                                               \
+        (dst)->pos = ((struct jsmnftok *)(src))->pos;    \
+        (dst)->len = ((struct jsmnftok *)(src))->len;    \
+    }
 
-#define _jsmnf_key_hash(key, hash)                                            \
-    5031;                                                                     \
-    do {                                                                      \
-        unsigned __CHASH_HINDEX;                                              \
-        for (__CHASH_HINDEX = 0; __CHASH_HINDEX < (key).len;                  \
-             ++__CHASH_HINDEX) {                                              \
-            (hash) = (((hash) << 1) + (hash))                                 \
-                     + _JSMNF_STRING_B[(key).pos + __CHASH_HINDEX];           \
-        }                                                                     \
-    } while (0)
+#define TABLEC_SYMBOL_KEY_HASH(_key, _data)               \
+    struct jsmnftok *key = _key;                          \
+    const char *js = _data;                               \
+    unsigned hash = 0;                                    \
+    unsigned i = 0;                                       \
+                                                          \
+    if (key->len == 0) return 5031;                       \
+                                                          \
+    for (; i < key->len; ++i) {                           \
+        hash = ((hash << 1) + hash) + js[key->pos + i];   \
+    }                                                     \
+                                                          \
+    return hash;                                          \
 
 /* compare jsmnf keys */
-#define _jsmnf_key_compare(cmp_a, cmp_b)                                      \
-    ((cmp_a).len == (cmp_b).len                                               \
-     && !strncmp(_JSMNF_STRING_B + (cmp_a).pos,                               \
-                 _JSMNF_STRING_A + (cmp_b).pos, (cmp_a).len))
+#define TABLEC_SYMBOL_KEY_COMPARE(a, b, data)              \
+    struct jsmnftok _a = a;                                \
+    struct jsmnftok *_b = b;                               \
+    const char *_js = data;                                \
+                                                           \
+    return (_a.len != _b->len) &&                          \
+            strncmp(_js + _a.pos, _js + _b->pos, _a.len);  \
 
-#define _JSMNF_TABLE_HEAP   0
-#define _JSMNF_TABLE_BUCKET struct jsmnf_pair
-#define _JSMNF_TABLE_FREE_KEY(_key)
-#define _JSMNF_TABLE_HASH(_key, _hash) _jsmnf_key_hash(_key, _hash)
-#define _JSMNF_TABLE_FREE_VALUE(_value)
-#define _JSMNF_TABLE_COMPARE(_cmp_a, _cmp_b) _jsmnf_key_compare(_cmp_a, _cmp_b)
-#define _JSMNF_TABLE_INIT(_bucket, _key, _value)                              \
-    chash_default_init(_bucket, _key, _value)
+#include "tablec.h"
 
 JSMN_API void
 jsmnf_init(jsmnf_loader *loader)
 {
     loader->pairnext = 0;
 }
-
-#define _JSMNF_STRING_A js
-#define _JSMNF_STRING_B js
 
 static int
 _jsmnf_load_pairs(struct jsmnf_loader *loader,
@@ -238,11 +243,10 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
 
         loader->pairnext = top_idx;
 
-        (void)chash_init_stack(curr, &pairs[bottom_idx], top_idx - bottom_idx,
-                               _JSMNF_TABLE);
+        tablec_init(curr, (void *)&pairs[bottom_idx], top_idx - bottom_idx);
 
         if (JSMN_OBJECT == tok->type) {
-            while (curr->size < tok->size) {
+          while (curr->length < (size_t)tok->size) {
                 const struct jsmntok *_key = tok + 1 + offset;
                 struct jsmnftok key, value = { 0 };
 
@@ -260,8 +264,8 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
                     value.pos = _value->start;
                     value.len = _value->end - _value->start;
 
-                    chash_assign(curr, key, value, _JSMNF_TABLE);
-                    (void)chash_lookup_bucket(curr, key, found, _JSMNF_TABLE);
+                    tablec_set(curr, &key, &value, (void *)js);
+                    found = (struct jsmnf_pair *)tablec_get(curr, &key, (void *)js);
 
                     ret = _jsmnf_load_pairs(loader, js, found, _value,
                                             num_tokens - offset, pairs,
@@ -271,14 +275,14 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
                     offset += ret;
                 }
                 else {
-                    chash_assign(curr, key, value, _JSMNF_TABLE);
+                    tablec_set(curr, &key, &value, (void *)js);
                 }
             }
         }
         else if (JSMN_ARRAY == tok->type) {
-            for (; curr->size < tok->size; ++curr->size) {
+            for (; curr->length < (size_t)tok->size; ++curr->length) {
                 const struct jsmntok *_value = tok + 1 + offset;
-                struct jsmnf_pair *element = curr->fields + curr->size;
+                struct jsmnf_pair *element = curr->fields + curr->length;
                 struct jsmnftok value;
 
                 value.pos = _value->start;
@@ -286,7 +290,6 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
 
                 /* assign array element */
                 element->v = value;
-                element->state = CHASH_FILLED;
                 /* unused for array elements */
                 element->k.pos = 0;
                 element->k.len = 0;
@@ -311,9 +314,6 @@ _jsmnf_load_pairs(struct jsmnf_loader *loader,
 
     return offset + 1;
 }
-
-#undef _JSMNF_STRING_A
-#undef _JSMNF_STRING_B
 
 JSMN_API int
 jsmnf_load(struct jsmnf_loader *loader,
@@ -347,9 +347,6 @@ jsmnf_load(struct jsmnf_loader *loader,
     return ret;
 }
 
-#define _JSMNF_STRING_A js
-#define _JSMNF_STRING_B key
-
 JSMN_API struct jsmnf_pair *
 jsmnf_find(const struct jsmnf_pair *head,
            const char *js,
@@ -358,24 +355,24 @@ jsmnf_find(const struct jsmnf_pair *head,
 {
     struct jsmnf_pair *found = NULL;
 
+    (void) js;
+
     if (!key || !head) return NULL;
 
     if (JSMN_OBJECT == head->type) {
         struct jsmnftok _key;
-        int contains;
 
         _key.pos = 0;
         _key.len = length;
 
-        contains = chash_contains(head, _key, contains, _JSMNF_TABLE);
-        if (contains) {
-            (void)chash_lookup_bucket(head, _key, found, _JSMNF_TABLE);
-        }
+        found = (struct jsmnf_pair *)tablec_get((struct jsmnf_pair *)head, &_key, (void *)key);
+
+        if (!found || found->k.len == 0) found = NULL;
     }
     else if (JSMN_ARRAY == head->type) {
         char *endptr;
         int idx = (int)strtol(key, &endptr, 10);
-        if (endptr != key && idx < head->size) found = head->fields + idx;
+        if (endptr != key && (size_t)idx < head->length) found = head->fields + idx;
     }
     return found;
 }
