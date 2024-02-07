@@ -11,7 +11,7 @@ at [json-build](https://github.com/lcsmuller/json-build).
 
 ## Included Dependencies
 
-* [chash](https://github.com/c-ware/chash) - Type-safe, stackful hashtable
+* [TableC](https://github.com/PerformanC/TableC) - Simple open-addressing hashtable
 
 ## Design
 
