@@ -18,19 +18,19 @@ static int g_n_files;
 enum action {
     ACTION_NONE = 0,
     ACTION_ACCEPT = 1 << 0,
-    ACTION_REJECT = 1 << 2
+    ACTION_REJECT = 1 << 1
 };
 
 struct context {
     char *str;
-    long len;
+    size_t len;
     enum action expected;
 };
 
 static char *
-load_whole_file(char *filename, long *p_fsize)
+load_whole_file(char *filename, size_t *p_fsize)
 {
-    long fsize;
+    size_t fsize;
     char *str;
     FILE *f;
 
@@ -54,57 +54,44 @@ load_whole_file(char *filename, long *p_fsize)
 }
 
 TEST
-check_parser(struct context *cxt)
+check_parser(const struct context *const cxt)
 {
-    static char errbuf[2048];
-
-    int jsonlen = (cxt->len < (int)sizeof(errbuf) - 1)
-                      ? cxt->len
-                      : (int)sizeof(errbuf) - 1;
+    static char errbuf[0x1000];
+    const size_t jsonlen =
+        (cxt->len < sizeof(errbuf) - 1) ? cxt->len : sizeof(errbuf) - 1;
     enum action action;
     pid_t pid;
     int status;
 
-    pid = fork();
-    if (pid < 0) {
+    if ((pid = fork()) < 0) {
         sprintf(errbuf, "%.*s", (int)sizeof(errbuf) - 1, strerror(errno));
         SKIPm(errbuf);
     }
-
     if (0 == pid) { /* child process */
-        jsmn_parser parser;
-        jsmntok_t toks[256];
+        jsmnf_table table[256];
         jsmnf_loader loader;
-        jsmnf_pair pairs[256];
-        int ret;
 
-        jsmn_init(&parser);
         jsmnf_init(&loader);
-
-        ret = jsmn_parse(&parser, cxt->str, cxt->len, toks,
-                         sizeof(toks) / sizeof *toks);
-        if (ret < 0) _exit(EXIT_FAILURE);
-
-        ret = jsmnf_load(&loader, cxt->str, toks, parser.toknext, pairs,
-                         sizeof(pairs) / sizeof *pairs);
-        _exit(ret >= 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+        _exit((jsmnf_load(&loader, cxt->str, cxt->len, table,
+                          sizeof(table) / sizeof *table)
+               > 0)
+                  ? EXIT_SUCCESS
+                  : EXIT_FAILURE);
     }
 
     wait(&status);
     if (!WIFEXITED(status)) { /* child process crashed */
-        sprintf(errbuf, "Process crashed, JSON: %.*s", jsonlen, cxt->str);
+        sprintf(errbuf, "Process crashed, JSON: %.*s", (int)jsonlen, cxt->str);
         FAILm(errbuf);
     }
-
-    if (EXIT_SUCCESS == WEXITSTATUS(status))
-        action = ACTION_ACCEPT;
-    else
-        action = ACTION_REJECT;
-
-    if (!cxt->expected || action & cxt->expected) PASS();
-
-    sprintf(errbuf, "JSON: %.*s", jsonlen, cxt->str);
-    FAILm(errbuf);
+    action =
+        WEXITSTATUS(status) == EXIT_SUCCESS ? ACTION_ACCEPT : ACTION_REJECT;
+    if (cxt->expected != ACTION_NONE && !(action & cxt->expected)) {
+        sprintf(errbuf, "expected: %d | got: %d\nJSON: %.*s", cxt->expected,
+                action, (int)jsonlen, cxt->str);
+        FAILm(errbuf);
+    }
+    PASS();
 }
 
 SUITE(json_parsing)
@@ -114,6 +101,14 @@ SUITE(json_parsing)
 
     for (i = 0; i < g_n_files; ++i) {
         cxt.str = load_whole_file(g_files[i], &cxt.len);
+
+        if (g_suffixes[i][1] != '_') {
+            fprintf(stderr,
+                    "Error: File '%s' not conforming to "
+                    "github.com/nst/JSONTestSuite",
+                    g_files[i]);
+            exit(EXIT_FAILURE);
+        }
 
         switch (g_suffixes[i][0]) {
         case 'y':

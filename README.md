@@ -8,10 +8,8 @@ at [json-build](https://github.com/lcsmuller/json-build).
 ## Dependencies
 
 * [jsmn](https://github.com/zserge/jsmn) - Minimalistic JSON parser
-
-## Included Dependencies
-
-* [chash](https://github.com/c-ware/chash) - Type-safe, stackful hashtable
+* [oa_hash](https://github.com/lcsmuller/oa-hash) - A lightweight
+single-header open-addressing hashtable implementation in ANSI C
 
 ## Design
 
@@ -29,95 +27,91 @@ to your linker search path:
 #include "jsmn-find.h"
 
 ...
-jsmn_parser parser;
-jsmntok_t tokens[256];
-
-jsmn_init(&parser);
-r = jsmn_parse(&parser, json, strlen(json), tokens, 256);
-if (r < 0) error();
-
-// populate jsmnf_pairs with the jsmn tokens
+jsmnf_table pairs[256];
 jsmnf_loader loader;
-jsmnf_pair pairs[256];
 
 jsmnf_init(&loader);
-r = jsmnf_load(&loader, json, tokens, parser.toknext, pairs, 256);
+long r = jsmnf_load(&loader, json, strlen(json), table, 256);
 if (r < 0) error();
 ```
 
-#### auto load (allocate memory for jsmn tokens and jsmnf pairs as necessary)
-```c
-#include "jsmn.h"
-#include "jsmn-find.h"
+#### auto load (allocate memory for jsmnf_table automatically)
+##### jsmn_parse_auto
 
-...
+```c
 jsmn_parser parser;
 jsmntok_t *toks = NULL;
 unsigned num_tokens = 0;
 
 jsmn_init(&parser);
-r = jsmn_parse_auto(&parser, json, strlen(json), &toks, &num_tokens);
+long r = jsmn_parse_auto(&parser, json, strlen(json), &toks, &num_tokens);
 if (r <= 0) error();
 
-// populate jsmnf_pairs with the jsmn tokens
+free(toks);
+```
+
+##### jsmnf_load_auto
+
+```c
 jsmnf_loader loader;
-jsmnf_pair *pairs = NULL;
-unsigned num_pairs = 0;
+jsmnf_table *table = NULL;
+size_t table_len = 0;
 
 jsmnf_init(&loader);
-r = jsmnf_load_auto(&loader, json, toks, num_tokens, &pairs, &num_pairs);
+long r = jsmnf_load_auto(&loader, json, strlen(json), &table, &table_len);
 if (r <= 0) error();
 
-...
-free(toks);
-free(pairs);
+free(table);
 ```
 
 #### find by key
+
 ```c
-jsmnf_pair *f;
+const jsmnf_pair *f;
 
 // assume the JSON : { "foo": { "bar": [ true, null, null ] } }
-if ((f = jsmnf_find(pairs, json, "foo", strlen("foo")))) {
+if ((f = jsmnf_find(loader.root, "foo", strlen("foo")))) {
     // Found: { "bar" : [ true, null, null ] }
-    printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
-    if ((f = jsmnf_find(f, json, "bar", 3))) {
+    printf("Found: %.*s\n", f->v->end - f->v->start, json + f->v->start);
+    if ((f = jsmnf_find(f, "bar", 3))) {
         // Found: [ true, null, null ]
-        printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
-        if ((f = jsmn_find(f, json, "0", 1))) {
+        printf("Found: %.*s\n", f->v->end - f->v->start, json + f->v->start);
+        if ((f = jsmnf_find(f, "0", 1))) {
             // Found: true
-            printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
+            printf("Found: %.*s\n", f->v->end - f->v->start, json + f->v->start);
         }
     }
 }
 ```
 
 #### index access for arrays
+
 ```c
-jsmnf_pair *f;
+const jsmnf_pair *f;
 
 // assume the JSON : [ false, [ true ] ]
-f = &pairs->fields[1];
-printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos); // Found: [ true ]
+f = &loader.root->fields[1];
+printf("Found: %.*s\n", f->v->end - f->v->start, json + f->v->start); // Found: [ true ]
 f = &f->fields[0]; // get nested array
-printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos); // Found: true
+printf("Found: %.*s\n", f->v->end - f->v->start, json + f->v->start); // Found: true
 
 // looping over array
-for (int i = 0; pairs->size; ++i) {
-    f = &pairs->fields[i];
-    printf("%.*s ", (int)f->v.len, json + f->v.pos);
+for (int i = 0; loader.root->size; ++i) {
+    f = &loader.root->fields[i];
+    printf("%.*s ", f->v->end - f->v->start, json + f->v->start);
 }
 ```
 
 #### find by path
+
 ```c
 // assume the JSON : [ false, false, [ false, [ { "b":true } ] ] ]
 char *path[] = { "2", "1", "0", "b" }; // array keys are the same as its indexes
-jsmnf_pair *f;
+const jsmnf_pair *f;
 
-if ((f = jsmnf_find_path(pairs, json, path, sizeof(path) / sizeof *path))) {
+if ((f = jsmnf_find_path(&loader.root, path, sizeof(path) / sizeof *path))) {
     // Found: true
-    printf("Found: %.*s\n", (int)f->v.len, json + f->v.pos);
+    printf("Found: %.*s\n", (int)f->v->end - f->v->start, json + f->v->start);
 }
 ```
 
@@ -137,14 +131,14 @@ jsmn-find is single-header and should be compatible with jsmn additional macros 
 ## API
 
 * `jsmnf_init()` - initialize a `jsmnf_loader`
-* `jsmnf_load()` - populate `jsmnf_pair` array with JSMN tokens
+* `jsmnf_load()` - populate `jsmnf_table` table with JSMN tokens
 * `jsmnf_find()` - locate a `jsmnf_pair` by its associated key
 * `jsmnf_find_path()` - locate a `jsmnf_pair` by its full key path
 
 ### Misc
 
-* `jsmn_parse_auto()` - `jsmn_parse()` counterpart that allocates the necessary amount of tokens
-* `jsmnf_load_auto()` - `jsmn_load()` counterpart that allocates the necessary amount of pairs
+* `jsmn_parse_auto()` - `jsmn_parse()` counterpart that automatically allocates the necessary amount of tokens
+* `jsmnf_load_auto()` - `jsmnf_load()` counterpart that automatically allocates the necessary amount of pairs
 * `jsmnf_unescape()` - unescape a Unicode string
 
 ## Other Info
