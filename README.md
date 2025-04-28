@@ -27,7 +27,7 @@ to your linker search path:
 #include "jsmn-find.h"
 
 ...
-jsmnf_table pairs[256];
+jsmnf_table table[256];
 jsmnf_loader loader;
 
 jsmnf_init(&loader);
